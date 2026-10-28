@@ -8,9 +8,9 @@ const PRESETS: { label: string; kb: number | null }[] = [
 ];
 const MIN_KB = 10;
 
-type Props = { value: number | null; onChange: (kb: number | null) => void };
+type Props = { value: number | null; onChange: (kb: number | null) => void; hint?: string };
 
-export default function SizeLimitPicker({ value, onChange }: Props) {
+export default function SizeLimitPicker({ value, onChange, hint }: Props) {
   const isPreset = PRESETS.some((p) => p.kb === value);
   const [custom, setCustom] = useState(!isPreset);
   const [amount, setAmount] = useState("200");
@@ -77,6 +77,7 @@ export default function SizeLimitPicker({ value, onChange }: Props) {
           {customInvalid && <span className="status-error">Use at least {MIN_KB} KB.</span>}
         </div>
       )}
+      {hint && <p className="hint">{hint}</p>}
     </fieldset>
   );
 }

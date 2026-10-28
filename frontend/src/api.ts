@@ -2,6 +2,7 @@ export type FormatMap = Record<string, { category: string; outputs: string[] }>;
 
 export type Job = {
   id: string;
+  operation: "convert" | "combine" | "split";
   filename: string;
   target_format: string;
   max_bytes: number | null;
@@ -36,6 +37,27 @@ export async function createJob(file: File, target: string, maxSizeKb: number | 
   body.append("target_format", target);
   if (maxSizeKb) body.append("max_size_kb", String(maxSizeKb));
   const res = await fetch("/api/jobs", { method: "POST", body });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return res.json();
+}
+
+export async function combinePdf(files: File[], outputName: string, maxSizeKb: number | null): Promise<Job> {
+  const body = new FormData();
+  files.forEach((f) => body.append("files", f));
+  body.append("output_name", outputName);
+  if (maxSizeKb) body.append("max_size_kb", String(maxSizeKb));
+  const res = await fetch("/api/pdf/combine", { method: "POST", body });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return res.json();
+}
+
+/** `ranges` like "1-3, 5, 8-"; empty means one PDF per page. */
+export async function splitPdf(file: File, ranges: string, maxSizeKb: number | null): Promise<Job> {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("ranges", ranges);
+  if (maxSizeKb) body.append("max_size_kb", String(maxSizeKb));
+  const res = await fetch("/api/pdf/split", { method: "POST", body });
   if (!res.ok) throw new Error(await errorMessage(res));
   return res.json();
 }

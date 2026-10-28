@@ -109,3 +109,28 @@ def test_impossible_target_reports_smallest_size(tmp_path):
 @pytest.mark.parametrize("n, text", [(500, "500 B"), (2048, "2 KB"), (5 * 1024 * 1024, "5.0 MB")])
 def test_human(n, text):
     assert human(n) == text
+
+
+def test_zip_limit_applies_to_each_file(tmp_path, big_jpg):
+    path = tmp_path / "pages.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.write(big_jpg, "one.jpg")
+        zf.write(big_jpg, "sub/two.jpg")
+    result = shrink(path, 80 * KB)
+    assert result.met and result.path == path
+    assert "each file" in result.note
+    with zipfile.ZipFile(path) as zf:
+        assert zf.namelist() == ["one.jpg", "sub/two.jpg"]
+        assert all(i.file_size <= 80 * KB for i in zf.infolist())
+
+
+def test_zip_reports_files_still_over_limit(tmp_path):
+    path = tmp_path / "data.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("noise.csv", os.urandom(60 * KB))
+        zf.writestr("small.csv", b"a,b\n1,2\n")
+    result = shrink(path, 20 * KB)
+    assert not result.met
+    assert "1 of 2 files" in result.note
+    with zipfile.ZipFile(path) as zf:
+        assert zf.namelist() == ["noise.csv", "small.csv"]  # no nested zips

@@ -2,6 +2,7 @@ import io
 import time
 import zipfile
 
+import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -119,3 +120,75 @@ def test_archive_dedupes_names(csv_file, tmp_path):
 
 def test_archive_with_nothing_ready():
     assert client.post("/api/archive", json={"ids": ["nope"]}).status_code == 404
+
+
+def make_pdf(path, pages):
+    doc = pymupdf.open()
+    for i in range(pages):
+        doc.new_page().insert_text((72, 72), f"Page {i + 1}")
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def test_combine_images_and_pdf(tmp_path, png_alpha, big_jpg):
+    pdf = make_pdf(tmp_path / "intro.pdf", 2)
+    files = [("files", (p.name, p.read_bytes())) for p in (pdf, big_jpg, png_alpha)]
+    res = client.post("/api/pdf/combine", files=files, data={"output_name": "My album"})
+    assert res.status_code == 201
+    job = wait_for(res.json()["id"])
+    assert job["status"] == "done", job
+    assert job["operation"] == "combine"
+    assert job["output_name"] == "My album.pdf"
+
+    dl = client.get(f"/api/jobs/{job['id']}/download")
+    with pymupdf.open(stream=dl.content, filetype="pdf") as doc:
+        assert doc.page_count == 4
+
+
+def test_combine_rejects_other_types(tmp_path, png_alpha, csv_file):
+    files = [("files", (p.name, p.read_bytes())) for p in (png_alpha, csv_file)]
+    res = client.post("/api/pdf/combine", files=files)
+    assert res.status_code == 415
+    assert ".csv" in res.json()["detail"]
+
+
+def test_split_by_ranges(tmp_path):
+    src = make_pdf(tmp_path / "report.pdf", 5)
+    with src.open("rb") as fh:
+        res = client.post("/api/pdf/split", files={"file": (src.name, fh)}, data={"ranges": "1-2, 5"})
+    assert res.status_code == 201
+    job = wait_for(res.json()["id"])
+    assert job["status"] == "done", job
+    dl = client.get(f"/api/jobs/{job['id']}/download")
+    with zipfile.ZipFile(io.BytesIO(dl.content)) as zf:
+        assert zf.namelist() == ["report-pages1-2.pdf", "report-page5.pdf"]
+
+
+def test_split_every_page_by_default(tmp_path):
+    src = make_pdf(tmp_path / "report.pdf", 3)
+    with src.open("rb") as fh:
+        job = wait_for(client.post("/api/pdf/split", files={"file": (src.name, fh)}).json()["id"])
+    assert job["output_name"] == "report-split.zip"
+
+
+def test_split_bad_range_is_rejected_immediately(tmp_path):
+    src = make_pdf(tmp_path / "report.pdf", 3)
+    with src.open("rb") as fh:
+        res = client.post("/api/pdf/split", files={"file": (src.name, fh)}, data={"ranges": "2-9"})
+    assert res.status_code == 400
+    assert "3 pages" in res.json()["detail"]
+
+
+def test_split_needs_a_pdf(csv_file):
+    with csv_file.open("rb") as fh:
+        res = client.post("/api/pdf/split", files={"file": (csv_file.name, fh)})
+    assert res.status_code == 415
+
+
+def test_split_broken_pdf(tmp_path):
+    src = tmp_path / "broken.pdf"
+    src.write_bytes(b"%PDF-1.4 nonsense")
+    with src.open("rb") as fh:
+        res = client.post("/api/pdf/split", files={"file": (src.name, fh)}, data={"ranges": "1"})
+    assert res.status_code == 400

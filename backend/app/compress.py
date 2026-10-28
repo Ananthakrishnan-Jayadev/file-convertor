@@ -51,8 +51,9 @@ def human(n: int) -> str:
     return f"{n / 1024 / 1024:.1f} MB"
 
 
-def shrink(path: Path, target: int) -> Shrunk:
-    """Shrink `path` in place (or replace it with a .zip) to at most `target` bytes."""
+def shrink(path: Path, target: int, zip_fallback: bool = True) -> Shrunk:
+    """Shrink `path` in place (or replace it with a .zip) to at most `target` bytes.
+    For a .zip of results (PDF pages, split parts, sheets) the limit applies to each file inside."""
     if path.stat().st_size <= target:
         return Shrunk(path, True)
 
@@ -68,9 +69,11 @@ def shrink(path: Path, target: int) -> Shrunk:
     elif ext in CONTAINERS:
         _keep_if_smaller(path, _shrink_container(path, target))
     elif ext == "zip":
-        note = "Multi-file results are zipped as they are; the size limit isn't applied to them."
-    else:
+        return _shrink_zip_members(path, target)
+    elif zip_fallback:
         path, note = _zip_fallback(path)
+    else:
+        note = "This file type can't be shrunk without losing data."
 
     size = path.stat().st_size
     if size <= target:
@@ -208,6 +211,31 @@ def _recompress_picture(name: str, data: bytes, quality: int, scale: float) -> b
             im = im.quantize(256, method=Image.Quantize.FASTOCTREE)
         new = images.encode(im, "png")
     return new if len(new) < len(data) else data
+
+
+# --- zips of several results --------------------------------------------------------
+
+
+def _shrink_zip_members(path: Path, target: int) -> Shrunk:
+    # Work next to the zip so the final replace() stays on the same disk.
+    with tempfile.TemporaryDirectory(dir=path.parent, ignore_cleanup_errors=True) as tmp:
+        work = Path(tmp)
+        missed = 0
+        with zipfile.ZipFile(path) as src, zipfile.ZipFile(work / "out.zip", "w", zipfile.ZIP_DEFLATED) as dst:
+            members = [i for i in src.infolist() if not i.is_dir()]
+            for i, info in enumerate(members):
+                # Extract under a numbered name: never trust paths stored inside a zip.
+                member = work / f"{i}{Path(info.filename).suffix}"
+                member.write_bytes(src.read(info))
+                if not shrink(member, target, zip_fallback=False).met:
+                    missed += 1
+                dst.write(member, info.filename)
+        (work / "out.zip").replace(path)
+
+    note = f"The {human(target)} limit was applied to each file in the zip."
+    if missed:
+        note += f" {missed} of {len(members)} files are still above it."
+    return Shrunk(path, missed == 0, note)
 
 
 # --- everything else ----------------------------------------------------------------

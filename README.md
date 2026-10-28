@@ -5,7 +5,8 @@ under a size limit: under 5 MB, under 1 MB, under 500 KB, or any custom size.
 
 Drop in images, documents, slides, spreadsheets, PDFs or data files, choose an output format
 for each one, optionally pick a size limit, and download the results one by one or as a single
-zip. Everything runs on your own machine, and uploaded files are deleted after an hour.
+zip. It can also combine images and PDFs into one PDF, and split a PDF into pages or ranges.
+Everything runs on your own machine, and uploaded files are deleted after an hour.
 
 ## Features
 
@@ -17,6 +18,10 @@ zip. Everything runs on your own machine, and uploaded files are deleted after a
 - **Batch conversion:** convert many files at once, set a format per file or for all of them,
   and download everything as one zip.
 - **Shrink only:** keep a file's format and just make it smaller.
+- **Combine into one PDF:** mix images and PDFs, put them in the order you want, and get one
+  PDF. Each image becomes a page the same shape as the image.
+- **Split a PDF:** one PDF per page, or your own ranges such as `1-3, 5, 8-`, where each range
+  becomes its own PDF. The size limit applies to each PDF you get back.
 - **One command to run:** `fileconvert serve` builds the UI and serves the UI and API on port 8000.
 
 ## Supported conversions
@@ -34,6 +39,15 @@ A few conversions produce several files. Those come back as one zip:
 - a PDF with several pages converted to images gives one image per page;
 - a workbook with several sheets converted to CSV, TSV or HTML gives one file per sheet.
 
+### PDF tools
+
+| Tool | Input | Output |
+|---|---|---|
+| **Combine into PDF** | Any mix of images (PNG, JPG, WEBP, AVIF, HEIC, GIF, BMP, TIFF, ICO) and PDFs, in your order | One PDF |
+| **Split PDF** | One PDF, plus "every page" or ranges like `1-3, 5, 8-` | One PDF per page or range; several parts come back as a zip |
+
+Ranges: `5` is one page, `2-4` is pages 2 to 4, `8-` runs to the last page, `-3` is pages 1 to 3.
+
 ## How the size limit works
 
 | Result type | What the app does |
@@ -43,6 +57,7 @@ A few conversions produce several files. Those come back as one zip:
 | PDF | Re-renders the PDF with Ghostscript, lowering image resolution step by step from 220 to 50 dpi |
 | DOCX, PPTX, XLSX, ODT, ODP, ODS, EPUB | Recompresses the pictures inside the file, leaving text and layout untouched |
 | CSV, TXT, JSON and other text files | These can't shrink without losing data, so they're packed into a zip |
+| Zip of several results (PDF pages, split parts, sheets) | The limit applies to each file inside, using the method for that file's type |
 
 ## Getting started
 
@@ -125,6 +140,7 @@ Browser (React)                     FastAPI                               Worker
 ───────────────                     ───────                               ──────────────
 POST /api/jobs  (file, format,  ──▶ checks the type, saves the upload ──▶ convert ─▶ shrink to limit
                  size limit)        returns a job id
+POST /api/pdf/combine | split   ──▶ same, for the PDF tools           ──▶ combine / split ─▶ shrink
 GET  /api/jobs/{id}  (every 1s) ──▶ queued / running / done / error
 GET  /api/jobs/{id}/download    ──▶ the converted file
 ```
@@ -134,6 +150,8 @@ GET  /api/jobs/{id}/download    ──▶ the converted file
 - **Converters** (`converters/`): images use Pillow and pillow-heif; documents and slides use
   headless LibreOffice; spreadsheets use pandas; PDFs use PyMuPDF and pdf2docx; data formats use
   PyYAML and xmltodict.
+- **PDF tools** (`pdftools.py`): combining and splitting with PyMuPDF. Page ranges are checked
+  when you upload, so a typo is reported straight away.
 - **Size controller** (`compress.py`): the strategies in the table above.
 - **Jobs** (`jobs.py`): conversions run on a thread pool, and finished files are deleted after
   `FC_JOB_TTL` seconds.
@@ -144,6 +162,8 @@ GET  /api/jobs/{id}/download    ──▶ the converted file
 |---|---|---|
 | `GET` | `/api/formats` | Every supported input format and what it can become |
 | `POST` | `/api/jobs` | Start a conversion. Form fields: `file`, `target_format`, optional `max_size_kb` |
+| `POST` | `/api/pdf/combine` | Combine images and PDFs. Form fields: `files` (repeat, in page order), optional `output_name`, `max_size_kb` |
+| `POST` | `/api/pdf/split` | Split a PDF. Form fields: `file`, optional `ranges` (empty means every page), `max_size_kb` |
 | `GET` | `/api/jobs/{id}` | Job status, sizes, and a note when the size limit wasn't met |
 | `GET` | `/api/jobs/{id}/download` | Download the result |
 | `POST` | `/api/archive` | `{"ids": [...]}` returns the finished files as one zip |
@@ -161,11 +181,12 @@ backend/
     jobs.py          job queue, temporary storage, cleanup
     registry.py      which converter handles which conversion
     compress.py      the size controller
+    pdftools.py      combine images/PDFs into one PDF, split a PDF
     converters/      images, pdf, sheets, documents (LibreOffice), data
   tests/             pytest suite
   pyproject.toml     dependencies and the `fileconvert` command
 frontend/
-  src/               React UI: upload area, file list, size limit picker, size meter
+  src/               React UI: Convert, Combine into PDF and Split PDF tools, size limit picker, size meter
 Dockerfile           single image: builds the UI, installs LibreOffice and Ghostscript
 docker-compose.yml
 ```
@@ -192,12 +213,10 @@ Set these as environment variables before running `fileconvert serve` or in `doc
 - **Job status is kept in memory**: restarting the server forgets jobs that are running or finished.
 - **File types are recognised by extension**: a misnamed file fails during conversion and
   shows an error.
-- **No size limit for zip results**: multi-file results (pages, sheets) are zipped as they are.
 
 ## Roadmap
 
 - Audio and video with FFmpeg, including exact target sizes for video
-- Combining several images into one PDF; merging and splitting PDFs
 - OCR for scanned PDFs (OCRmyPDF) and ebook formats (Calibre)
 - Celery or RQ with Redis instead of the in-process queue, for running several servers
 - Checking file contents, not just extensions, before converting

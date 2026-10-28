@@ -26,17 +26,21 @@ def load(src: Path) -> Image.Image:
     return ImageOps.exif_transpose(im)
 
 
+def has_alpha(im: Image.Image) -> bool:
+    return im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+
+
 def prepare(im: Image.Image, fmt: str) -> Image.Image:
-    has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+    alpha = has_alpha(im)
     if fmt in _NO_ALPHA:
-        if has_alpha:
+        if alpha:
             rgba = im.convert("RGBA")
             bg = Image.new("RGB", rgba.size, (255, 255, 255))
             bg.paste(rgba, mask=rgba.getchannel("A"))
             return bg
         return im if im.mode in ("RGB", "L") else im.convert("RGB")
     if im.mode not in ("RGB", "RGBA", "L", "LA", "P"):
-        return im.convert("RGBA" if has_alpha else "RGB")
+        return im.convert("RGBA" if alpha else "RGB")
     return im
 
 

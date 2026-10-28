@@ -1,5 +1,5 @@
-import { downloadUrl, Job } from "./api";
-import { humanSize } from "./format";
+import { Job } from "./api";
+import { DoneSummary } from "./JobResult";
 import SizeMeter from "./SizeMeter";
 
 export type Item = {
@@ -86,22 +86,8 @@ function Status({ item }: { item: Item }) {
       return <p className="status status-busy">{job?.status === "running" ? "Converting…" : "Waiting in line…"}</p>;
     case "error":
       return <p className="status status-error">{message ?? "Conversion failed."}</p>;
-    case "done": {
-      if (!job || job.output_size == null) return null;
-      const saved = job.input_size > 0 ? Math.round((1 - job.output_size / job.input_size) * 100) : 0;
-      return (
-        <div className="done">
-          <p className="status">
-            {humanSize(job.input_size)} to {humanSize(job.output_size)}
-            {saved > 0 && ` (${saved}% smaller)`}
-            {job.note && <span className={job.target_met === false ? "note note-warn" : "note"}>{job.note}</span>}
-          </p>
-          <a className="btn btn-download" href={downloadUrl(job.id)} download={job.output_name ?? undefined}>
-            Download {job.output_name}
-          </a>
-        </div>
-      );
-    }
+    case "done":
+      return job ? <DoneSummary job={job} /> : null;
     default:
       return null;
   }

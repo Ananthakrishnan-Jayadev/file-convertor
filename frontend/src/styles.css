@@ -157,6 +157,36 @@ select {
   background: var(--paper);
 }
 
+/* --- tool tabs ------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin: 0 0 24px;
+  border-bottom: 1.5px solid var(--rule);
+}
+
+.tab {
+  padding: 10px 2px;
+  margin-bottom: -1.5px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--slate);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.is-on {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
 /* --- drop zone ------------------------------------------------------------- */
 
 .dropzone {
@@ -231,7 +261,8 @@ select {
 }
 
 select,
-input[type="number"] {
+input[type="number"],
+input[type="text"] {
   padding: 8px 10px;
   border: 1.5px solid var(--rule);
   border-radius: 8px;
@@ -381,6 +412,108 @@ input[aria-invalid="true"] {
   color: var(--bad);
 }
 
+/* --- combine: ordered list -------------------------------------------------- */
+
+.order-list {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.order-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 16px;
+}
+
+.order-row + .order-row {
+  border-top: 1px solid var(--rule);
+}
+
+/* The page order is real information, so the number gets the display face. */
+.order-num {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--slate);
+}
+
+.order-size {
+  color: var(--slate);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.order-buttons {
+  display: flex;
+}
+
+.name-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.name-input input {
+  width: min(260px, 60vw);
+}
+
+.name-suffix {
+  color: var(--slate);
+}
+
+/* --- split: options ---------------------------------------------------------- */
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.radio input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ink);
+}
+
+.ranges {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0 26px;
+}
+
+.ranges input {
+  width: min(260px, 60vw);
+}
+
+.hint {
+  margin: 0;
+  color: var(--slate);
+  font-size: 0.9rem;
+}
+
+.workbench > .hint {
+  margin-bottom: 10px;
+}
+
+.workbench > .file-row {
+  margin-bottom: 20px;
+}
+
+.result {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 16px 20px 18px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+
 /* --- size meter ------------------------------------------------------------ */
 
 .meter {
@@ -460,6 +593,12 @@ input[aria-invalid="true"] {
   }
   .meter-limit-label {
     transform: translateX(-80%);
+  }
+  .order-row {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  }
+  .order-size {
+    display: none;
   }
 }
 

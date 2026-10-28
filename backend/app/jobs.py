@@ -12,6 +12,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from .compress import shrink
 from .registry import find, normalize
@@ -27,11 +28,16 @@ class UnsupportedConversion(ValueError):
     pass
 
 
+# A unit of work: given the job's output folder, produce the result file and return its path.
+Work = Callable[[Path], Path]
+
+
 @dataclass
 class Job:
     filename: str
     target_format: str
     max_bytes: int | None
+    operation: str = "convert"  # convert | combine | split
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     status: str = "queued"  # queued | running | done | error
     error: str | None = None
@@ -49,6 +55,7 @@ class Job:
     def public(self) -> dict:
         return {
             "id": self.id,
+            "operation": self.operation,
             "filename": self.filename,
             "target_format": self.target_format,
             "max_bytes": self.max_bytes,
@@ -81,8 +88,8 @@ class JobStore:
         self._pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="convert")
         threading.Thread(target=self._cleanup_loop, daemon=True, name="job-cleanup").start()
 
-    def create(self, filename: str, target_format: str, max_bytes: int | None) -> Job:
-        job = Job(filename=filename, target_format=target_format, max_bytes=max_bytes)
+    def create(self, filename: str, target_format: str, max_bytes: int | None, operation: str = "convert") -> Job:
+        job = Job(filename=filename, target_format=target_format, max_bytes=max_bytes, operation=operation)
         (job.dir / "in").mkdir(parents=True)
         (job.dir / "out").mkdir()
         with self._lock:
@@ -94,18 +101,23 @@ class JobStore:
             return self._jobs.get(job_id)
 
     def submit(self, job: Job, src: Path) -> None:
-        job.input_size = src.stat().st_size
-        self._pool.submit(self._run, job, src)
+        """Convert one uploaded file to the job's target format."""
+        self.submit_work(job, lambda out_dir: convert_file(src, out_dir, job.target_format), [src])
+
+    def submit_work(self, job: Job, work: Work, inputs: list[Path]) -> None:
+        """Run any task; `inputs` are the uploaded files, deleted once the task finishes."""
+        job.input_size = sum(p.stat().st_size for p in inputs)
+        self._pool.submit(self._run, job, work, inputs)
 
     def discard(self, job: Job) -> None:
         with self._lock:
             self._jobs.pop(job.id, None)
         shutil.rmtree(job.dir, ignore_errors=True)
 
-    def _run(self, job: Job, src: Path) -> None:
+    def _run(self, job: Job, work: Work, inputs: list[Path]) -> None:
         job.status = "running"
         try:
-            out = convert_file(src, job.dir / "out", job.target_format)
+            out = work(job.dir / "out")
             if job.max_bytes:
                 result = shrink(out, job.max_bytes)
                 out, job.target_met, job.note = result.path, result.met, result.note
@@ -117,7 +129,8 @@ class JobStore:
             job.error = str(exc) or exc.__class__.__name__
             job.status = "error"
         finally:
-            src.unlink(missing_ok=True)
+            for p in inputs:
+                p.unlink(missing_ok=True)
 
     def _cleanup_loop(self) -> None:
         while True:

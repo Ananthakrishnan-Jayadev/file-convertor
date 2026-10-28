@@ -10,8 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
-from . import converters  # noqa: F401  (registers all converters)
-from .jobs import DATA_DIR, JobStore
+from . import converters, pdftools  # noqa: F401  (importing converters registers them)
+from .jobs import DATA_DIR, Job, JobStore
 from .registry import format_map, normalize
 
 MAX_UPLOAD = int(os.environ.get("FC_MAX_UPLOAD_MB", 200)) * 1024 * 1024
@@ -35,6 +35,31 @@ def get_formats() -> dict:
     return {"formats": FORMATS, "max_upload_bytes": MAX_UPLOAD}
 
 
+def check_limit(max_size_kb: int | None) -> int | None:
+    if max_size_kb is not None and max_size_kb < MIN_TARGET_KB:
+        raise HTTPException(400, f"The size limit must be at least {MIN_TARGET_KB} KB.")
+    return max_size_kb * 1024 if max_size_kb else None
+
+
+async def save_upload(job: Job, file: UploadFile, dest: Path, budget: int) -> int:
+    """Stream an upload to `dest`; `budget` is how many bytes this request may still use.
+    On failure the job is discarded and an HTTP error raised."""
+    size = 0
+    with dest.open("wb") as fh:
+        while chunk := await file.read(CHUNK):
+            size += len(chunk)
+            if size > budget:
+                break
+            fh.write(chunk)
+    if size > budget:
+        store.discard(job)
+        raise HTTPException(413, f"Uploads can be at most {MAX_UPLOAD // 1024 // 1024} MB in total.")
+    if size == 0:
+        store.discard(job)
+        raise HTTPException(400, f"{file.filename or 'The file'} is empty.")
+    return size
+
+
 @app.post("/api/jobs", status_code=201)
 async def create_job(
     file: UploadFile = File(...),
@@ -48,25 +73,66 @@ async def create_job(
     target = normalize(target_format)
     if target not in FORMATS[src_ext]["outputs"]:
         raise HTTPException(400, f"A .{src_ext} file can't be converted to .{target}.")
-    if max_size_kb is not None and max_size_kb < MIN_TARGET_KB:
-        raise HTTPException(400, f"The size limit must be at least {MIN_TARGET_KB} KB.")
 
-    job = store.create(filename, target, max_size_kb * 1024 if max_size_kb else None)
+    job = store.create(filename, target, check_limit(max_size_kb))
     src = job.dir / "in" / f"{safe_stem(filename)}.{src_ext}"
-    size = 0
-    with src.open("wb") as fh:
-        while chunk := await file.read(CHUNK):
-            size += len(chunk)
-            if size > MAX_UPLOAD:
-                fh.close()
-                store.discard(job)
-                raise HTTPException(413, f"Files can be at most {MAX_UPLOAD // 1024 // 1024} MB.")
-            fh.write(chunk)
-    if size == 0:
-        store.discard(job)
-        raise HTTPException(400, "The file is empty.")
-
+    await save_upload(job, file, src, MAX_UPLOAD)
     store.submit(job, src)
+    return job.public()
+
+
+@app.post("/api/pdf/combine", status_code=201)
+async def combine_pdf(
+    files: list[UploadFile] = File(...),
+    output_name: str = Form("combined"),
+    max_size_kb: int | None = Form(None),
+) -> dict:
+    """Images and PDFs, in the order sent, become one PDF."""
+    exts = [normalize(Path(f.filename or "").suffix) for f in files]
+    if bad := sorted({e or "?" for e in exts if e not in pdftools.COMBINE_INPUTS}):
+        raise HTTPException(415, f"Only images and PDFs can be combined, not .{', .'.join(bad)}.")
+
+    name = f"{safe_stem(output_name)}.pdf"
+    job = store.create(name, "pdf", check_limit(max_size_kb), operation="combine")
+    sources, used = [], 0
+    for i, (file, ext) in enumerate(zip(files, exts)):
+        # Number the files so their order survives and same-named uploads don't collide.
+        src = job.dir / "in" / f"{i:03d}-{safe_stem(file.filename or 'file')}.{ext}"
+        used += await save_upload(job, file, src, MAX_UPLOAD - used)
+        sources.append(src)
+
+    store.submit_work(job, lambda out_dir: pdftools.combine(sources, out_dir / name), sources)
+    return job.public()
+
+
+@app.post("/api/pdf/split", status_code=201)
+async def split_pdf(
+    file: UploadFile = File(...),
+    ranges: str = Form("", description="e.g. '1-3, 5, 8-'; leave empty for one PDF per page"),
+    max_size_kb: int | None = Form(None),
+) -> dict:
+    """One PDF per page, or one PDF per range. The size limit applies to each part."""
+    filename = file.filename or ""
+    if normalize(Path(filename).suffix) != "pdf":
+        raise HTTPException(415, "Only PDF files can be split.")
+
+    job = store.create(filename, "pdf", check_limit(max_size_kb), operation="split")
+    src = job.dir / "in" / f"{safe_stem(filename)}.pdf"
+    await save_upload(job, file, src, MAX_UPLOAD)
+    # Check the ranges now, so a typo is reported straight away instead of as a failed job.
+    try:
+        pages = pdftools.page_count(src)
+        if pages == 0:
+            raise ValueError("This PDF has no pages.")
+        parsed = pdftools.parse_ranges(ranges, pages) if ranges.strip() else None
+    except ValueError as exc:
+        store.discard(job)
+        raise HTTPException(400, str(exc)) from None
+    except Exception:
+        store.discard(job)
+        raise HTTPException(400, "This file couldn't be opened as a PDF.") from None
+
+    store.submit_work(job, lambda out_dir: pdftools.split(src, out_dir, parsed), [src])
     return job.public()
 
 
