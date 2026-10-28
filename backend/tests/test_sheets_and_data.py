@@ -63,7 +63,7 @@ def test_multi_sheet_xlsx_to_csv_is_zip_of_sheets(xlsx_two_sheets, out_dir):
 
 def test_multi_sheet_xlsx_json_roundtrip(xlsx_two_sheets, out_dir, tmp_path):
     js = convert_sheet(xlsx_two_sheets, out_dir, "json")
-    data = json.loads(js.read_text())
+    data = json.loads(js.read_text(encoding="utf-8"))
     assert data["First"] == [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
     back = tmp_path / "back"
     back.mkdir()
@@ -72,8 +72,8 @@ def test_multi_sheet_xlsx_json_roundtrip(xlsx_two_sheets, out_dir, tmp_path):
 
 
 def test_csv_to_tsv_and_html(csv_file, out_dir):
-    assert "Asha\t31" in convert_sheet(csv_file, out_dir, "tsv").read_text()
-    assert "<table" in convert_sheet(csv_file, out_dir, "html").read_text()
+    assert "Asha\t31" in convert_sheet(csv_file, out_dir, "tsv").read_text(encoding="utf-8")
+    assert "<table" in convert_sheet(csv_file, out_dir, "html").read_text(encoding="utf-8")
 
 
 def test_json_yaml_roundtrip(tmp_path, out_dir):
@@ -81,19 +81,19 @@ def test_json_yaml_roundtrip(tmp_path, out_dir):
     payload = {"name": "app", "ports": [80, 443], "debug": False}
     src.write_text(json.dumps(payload))
     y = convert_data(src, out_dir, "yaml")
-    assert yaml.safe_load(y.read_text()) == payload
+    assert yaml.safe_load(y.read_text(encoding="utf-8")) == payload
 
 
 def test_json_list_to_xml_gets_a_root(tmp_path, out_dir):
     src = tmp_path / "items.json"
     src.write_text(json.dumps([{"id": 1}, {"id": 2}]))
     xml = convert_data(src, out_dir, "xml")
-    parsed = xmltodict.parse(xml.read_text())
+    parsed = xmltodict.parse(xml.read_text(encoding="utf-8"))
     assert [i["id"] for i in parsed["root"]["item"]] == ["1", "2"]
 
 
 def test_xml_to_json(tmp_path, out_dir):
     src = tmp_path / "note.xml"
     src.write_text("<note><to>Ana</to><body>Hi</body></note>")
-    data = json.loads(convert_data(src, out_dir, "json").read_text())
+    data = json.loads(convert_data(src, out_dir, "json").read_text(encoding="utf-8"))
     assert data == {"note": {"to": "Ana", "body": "Hi"}}

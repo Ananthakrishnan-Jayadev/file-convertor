@@ -46,6 +46,8 @@ A few conversions produce several files. Those come back as one zip:
 
 ## Getting started
 
+Works on **Linux, macOS and Windows**.
+
 ### Requirements
 
 - Python 3.11 or newer
@@ -53,15 +55,18 @@ A few conversions produce several files. Those come back as one zip:
 - LibreOffice, for documents, slides and spreadsheet-to-PDF
 - Ghostscript, for PDF compression
 
-On Ubuntu or Debian:
+| Platform | Install LibreOffice and Ghostscript |
+|---|---|
+| Ubuntu / Debian | `sudo apt install libreoffice ghostscript` |
+| macOS (Homebrew) | `brew install --cask libreoffice` and `brew install ghostscript` |
+| Windows (PowerShell) | `winget install TheDocumentFoundation.LibreOffice` and `winget install ArtifexSoftware.GhostScript` |
 
-```bash
-sudo apt install libreoffice ghostscript
-```
+The app finds both programs on its own, either on `PATH` or in their default install folders
+(`C:\Program Files\LibreOffice`, `C:\Program Files\gs`, `/Applications/LibreOffice.app`).
+If you installed them somewhere else, set `SOFFICE_BIN` and `GS_BIN`.
+The app still starts without them; only the conversions that need them fail.
 
-The app still starts without LibreOffice or Ghostscript. Only the conversions that need them fail.
-
-### Install
+### Install and run on Linux / macOS
 
 ```bash
 git clone <this-repo> file_conversion
@@ -69,17 +74,25 @@ cd file_conversion
 
 python3 -m venv backend/.venv
 backend/.venv/bin/pip install -e "backend[test]"   # also creates the `fileconvert` command
-
 (cd frontend && npm install)
-```
 
-### Run
-
-```bash
 backend/.venv/bin/fileconvert serve
 ```
 
-Open **http://localhost:8000**.
+### Install and run on Windows (PowerShell)
+
+```powershell
+git clone <this-repo> file_conversion
+cd file_conversion
+
+py -m venv backend\.venv
+backend\.venv\Scripts\pip install -e "backend[test]"
+cd frontend; npm install; cd ..
+
+backend\.venv\Scripts\fileconvert serve
+```
+
+Then open **http://localhost:8000**.
 
 - `--port 9000` uses a different port.
 - `--host 0.0.0.0` lets other devices on your network, such as your phone, reach the app.
@@ -99,7 +112,7 @@ docker compose up --build      # http://localhost:8000
 
 ```bash
 cd backend
-.venv/bin/pytest                    # full suite
+.venv/bin/pytest                    # full suite   (Windows: .venv\Scripts\pytest)
 .venv/bin/pytest -m "not slow"      # skip the LibreOffice and PDF-to-DOCX tests
 ```
 
@@ -144,6 +157,7 @@ backend/
   app/
     main.py          API endpoints; also serves the built UI
     cli.py           the `fileconvert serve` command
+    tools.py         finds LibreOffice and Ghostscript on Linux, macOS and Windows
     jobs.py          job queue, temporary storage, cleanup
     registry.py      which converter handles which conversion
     compress.py      the size controller
@@ -166,7 +180,7 @@ Set these as environment variables before running `fileconvert serve` or in `doc
 | `FC_JOB_TTL` | `3600` | Seconds before uploaded and converted files are deleted |
 | `FC_WORKERS` | half the CPU cores | How many conversions run at the same time |
 | `FC_DATA_DIR` | system temp folder | Where uploads and results are stored |
-| `SOFFICE_BIN`, `GS_BIN` | found on `PATH` | Custom paths to LibreOffice and Ghostscript |
+| `SOFFICE_BIN`, `GS_BIN` | found automatically | Custom paths to LibreOffice and Ghostscript |
 
 ## Known limitations
 

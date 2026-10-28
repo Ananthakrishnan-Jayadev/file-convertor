@@ -10,8 +10,6 @@ When the target can't be reached we keep the smallest result and say so.
 """
 
 import io
-import os
-import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -20,6 +18,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from . import tools
 from .converters import images
 from .registry import normalize
 
@@ -28,7 +27,6 @@ MAX_QUALITY = 92
 MAX_RESIZE_STEPS = 12
 MIN_SIDE = 16
 
-GHOSTSCRIPT = os.environ.get("GS_BIN") or shutil.which("gs")
 # (PDFSETTINGS preset, image DPI), tried from best to worst quality.
 PDF_LEVELS = [("/printer", 220), ("/ebook", 150), ("/screen", 110), ("/screen", 72), ("/screen", 50)]
 
@@ -63,7 +61,7 @@ def shrink(path: Path, target: int) -> Shrunk:
     if ext in images.IMAGE_OUT - {"pdf"}:
         _keep_if_smaller(path, _shrink_image(path, ext, target))
     elif ext == "pdf":
-        if GHOSTSCRIPT:
+        if tools.ghostscript():
             _keep_if_smaller(path, _shrink_pdf(path, target))
         else:
             note = "PDF compression needs Ghostscript, which isn't installed on the server."
@@ -138,11 +136,11 @@ def _encode_under(im: Image.Image, ext: str, target: int) -> bytes:
 
 def _shrink_pdf(path: Path, target: int) -> bytes | None:
     best: bytes | None = None
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         out = Path(tmp) / "out.pdf"
         for preset, dpi in PDF_LEVELS:
             cmd = [
-                GHOSTSCRIPT, "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.5", "-dNOPAUSE", "-dBATCH",
+                tools.ghostscript(), "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.5", "-dNOPAUSE", "-dBATCH",
                 "-dQUIET", "-dSAFER", f"-dPDFSETTINGS={preset}",
                 "-dDownsampleColorImages=true", "-dDownsampleGrayImages=true", "-dDownsampleMonoImages=true",
                 f"-dColorImageResolution={dpi}", f"-dGrayImageResolution={dpi}",

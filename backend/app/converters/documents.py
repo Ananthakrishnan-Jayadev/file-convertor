@@ -1,6 +1,5 @@
 """Office documents via headless LibreOffice, plus Markdown via an HTML step."""
 
-import os
 import shutil
 import subprocess
 import tempfile
@@ -8,9 +7,9 @@ from pathlib import Path
 
 import markdown
 
+from .. import tools
 from ..registry import register
 
-SOFFICE = os.environ.get("SOFFICE_BIN") or shutil.which("soffice") or "soffice"
 TIMEOUT = 180
 
 # --convert-to arguments with explicit export filters, so LibreOffice never has to guess.
@@ -33,11 +32,16 @@ _CALC = {"pdf": "pdf:calc_pdf_Export"}
 
 
 def run_soffice(src: Path, out_dir: Path, fmt: str, filters: dict[str, str]) -> Path:
+    soffice = tools.soffice()
+    if soffice is None:
+        raise RuntimeError("This conversion needs LibreOffice, which isn't installed on the server.")
     # Each run gets its own throwaway profile; otherwise parallel conversions collide
-    # on LibreOffice's profile lock and silently produce nothing.
-    with tempfile.TemporaryDirectory(prefix="lo-profile-") as profile, \
-            tempfile.TemporaryDirectory(prefix="lo-out-") as tmp_out:
-        cmd = [SOFFICE, f"-env:UserInstallation=file://{profile}", "--headless", "--norestore"]
+    # on LibreOffice's profile lock and silently produce nothing. On Windows LibreOffice can
+    # hold files open for a moment after exiting, so cleanup errors are ignored.
+    with tempfile.TemporaryDirectory(prefix="lo-profile-", ignore_cleanup_errors=True) as profile, \
+            tempfile.TemporaryDirectory(prefix="lo-out-", ignore_cleanup_errors=True) as tmp_out:
+        # as_uri() gives file:///C:/... on Windows and file:///tmp/... elsewhere.
+        cmd = [soffice, f"-env:UserInstallation={Path(profile).as_uri()}", "--headless", "--norestore"]
         if src.suffix.lower() in (".html", ".htm"):
             cmd.append("--infilter=HTML (StarWriter)")  # open in Writer, not Writer/Web
         cmd += ["--convert-to", filters[fmt], "--outdir", tmp_out, str(src)]
@@ -67,7 +71,7 @@ def convert_markdown(src: Path, out_dir: Path, fmt: str) -> Path:
     html.write_text(f"<!doctype html><meta charset='utf-8'><title>{src.stem}</title>{body}", encoding="utf-8")
     if fmt == "html":
         return html
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         staged = Path(tmp) / html.name
         shutil.move(html, staged)
         return run_soffice(staged, out_dir, fmt, _WRITER)

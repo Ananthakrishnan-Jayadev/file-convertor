@@ -25,7 +25,7 @@ def test_single_page_pdf_to_one_image(pdf_with_photo, out_dir, fmt):
 
 
 def test_pdf_to_text(pdf_two_pages, out_dir):
-    text = convert_pdf(pdf_two_pages, out_dir, "txt").read_text()
+    text = convert_pdf(pdf_two_pages, out_dir, "txt").read_text(encoding="utf-8")
     assert "Hello page 1" in text and "Hello page 2" in text
 
 
@@ -37,7 +37,7 @@ def test_pdf_to_docx(pdf_two_pages, out_dir):
 
 
 def test_markdown_to_html_needs_no_libreoffice(markdown_file, out_dir):
-    html = convert_markdown(markdown_file, out_dir, "html").read_text()
+    html = convert_markdown(markdown_file, out_dir, "html").read_text(encoding="utf-8")
     assert "<h1>Title</h1>" in html and "<table>" in html
 
 

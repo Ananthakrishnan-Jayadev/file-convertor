@@ -1,5 +1,4 @@
 import os
-import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -13,10 +12,12 @@ from PIL import Image
 os.environ.setdefault("FC_DATA_DIR", tempfile.mkdtemp(prefix="fc-test-"))
 os.environ.setdefault("FC_JOB_TTL", "3600")
 
-HAS_SOFFICE = shutil.which(os.environ.get("SOFFICE_BIN", "soffice")) is not None
-HAS_GS = shutil.which(os.environ.get("GS_BIN", "gs")) is not None
-needs_soffice = pytest.mark.skipif(not HAS_SOFFICE, reason="LibreOffice (soffice) not installed")
-needs_gs = pytest.mark.skipif(not HAS_GS, reason="Ghostscript (gs) not installed")
+from app import tools  # noqa: E402
+
+HAS_SOFFICE = tools.soffice() is not None
+HAS_GS = tools.ghostscript() is not None
+needs_soffice = pytest.mark.skipif(not HAS_SOFFICE, reason="LibreOffice not installed")
+needs_gs = pytest.mark.skipif(not HAS_GS, reason="Ghostscript not installed")
 
 
 def photo(size=(1600, 1200)) -> Image.Image:
