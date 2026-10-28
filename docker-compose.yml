@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      FC_MAX_UPLOAD_MB: "200"
+      FC_JOB_TTL: "3600"
+    tmpfs:
+      - /data

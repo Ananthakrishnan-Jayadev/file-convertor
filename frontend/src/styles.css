@@ -1,0 +1,470 @@
+:root {
+  --paper: #eef1f4;
+  --surface: #ffffff;
+  --ink: #1b2a41;
+  --slate: #5b6b80;
+  --rule: #cfd6df;
+  --marker: #f2c230;
+  --ok: #2e7d5a;
+  --bad: #b4423a;
+  --focus: #2f6fd6;
+
+  --display: "Bricolage Grotesque", "Segoe UI", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121a26;
+    --surface: #1a2433;
+    --ink: #e6ebf2;
+    --slate: #9aa8bb;
+    --rule: #2e3b4f;
+    --marker: #f5cd4d;
+    --ok: #5cbf8f;
+    --bad: #e2766d;
+    --focus: #7aa7ff;
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.55 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- page ------------------------------------------------------------------ */
+
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 56px 16px 96px;
+}
+
+.masthead h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  max-width: 16ch;
+  margin: 0 0 16px;
+}
+
+.lede {
+  color: var(--slate);
+  max-width: 62ch;
+  margin: 0 0 32px;
+}
+
+.banner {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 0 0 24px;
+}
+
+.banner-error {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  color: var(--bad);
+}
+
+/* --- buttons --------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: transparent;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btn-quiet {
+  border-color: transparent;
+  color: var(--slate);
+}
+
+.btn-download {
+  border-color: var(--ok);
+  color: var(--ok);
+  padding: 6px 14px;
+  font-size: 0.94rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--slate);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--paper);
+}
+
+/* --- drop zone ------------------------------------------------------------- */
+
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 48px 24px 32px;
+  border: 2px dashed var(--rule);
+  border-radius: 20px;
+  background: var(--surface);
+  text-align: center;
+  transition: border-color 120ms, background-color 120ms;
+}
+
+.dropzone.is-over {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--marker) 14%, var(--surface));
+}
+
+.dropzone.is-disabled {
+  opacity: 0.6;
+}
+
+.dropzone-title {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.dropzone-hint {
+  color: var(--slate);
+  margin: 0;
+}
+
+.dropzone-formats {
+  margin: 16px 0 0;
+  max-width: 60ch;
+  color: var(--slate);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  word-spacing: 0.4em;
+}
+
+/* --- controls -------------------------------------------------------------- */
+
+.workbench {
+  margin-top: 40px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px 32px;
+  margin-bottom: 20px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.field-label {
+  padding: 0;
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+select,
+input[type="number"] {
+  padding: 8px 10px;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--bad);
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--rule);
+}
+
+.seg {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.seg:hover:not(.is-on) {
+  background: var(--paper);
+}
+
+/* The chosen limit wears the same yellow as the limit marker on every meter. */
+.seg.is-on {
+  background: var(--marker);
+  color: #1b2a41;
+  font-weight: 700;
+}
+
+.custom-limit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-limit input {
+  width: 110px;
+}
+
+/* --- file rows ------------------------------------------------------------- */
+
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.file-row {
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px 18px;
+  border-radius: 14px;
+  background: var(--surface);
+  border-left: 4px solid var(--rule);
+}
+
+.file-row.phase-done {
+  border-left-color: var(--ok);
+}
+
+.file-row.phase-error,
+.file-row.phase-unsupported {
+  border-left-color: var(--bad);
+}
+
+.file-row.phase-uploading,
+.file-row.phase-working {
+  border-left-color: var(--marker);
+}
+
+.file-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-convert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.fmt-chip {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--paper);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.to {
+  color: var(--slate);
+}
+
+.status {
+  margin: 0;
+  color: var(--slate);
+  font-size: 0.94rem;
+}
+
+.status-busy {
+  color: var(--ink);
+}
+
+.status-error {
+  color: var(--bad);
+}
+
+.done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.note {
+  display: block;
+  margin-top: 2px;
+}
+
+.note-warn {
+  color: var(--bad);
+}
+
+/* --- size meter ------------------------------------------------------------ */
+
+.meter {
+  position: relative;
+  padding-bottom: 22px;
+}
+
+.meter-track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--paper);
+}
+
+.meter-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 7px;
+  transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.meter-input {
+  background: color-mix(in srgb, var(--slate) 35%, transparent);
+}
+
+.meter-input.is-over {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--slate) 35%, transparent) 0 6px,
+    color-mix(in srgb, var(--slate) 20%, transparent) 6px 12px
+  );
+}
+
+.meter-output {
+  background: var(--ok);
+}
+
+.meter-output.is-missed {
+  background: var(--bad);
+}
+
+.meter-limit {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--marker);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.meter-limit-label {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  color: var(--slate);
+  white-space: nowrap;
+}
+
+/* --- footer actions -------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding-top: 32px;
+  }
+  .file-row {
+    padding: 14px 14px 16px;
+  }
+  .meter-limit-label {
+    transform: translateX(-80%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
