@@ -55,7 +55,7 @@ Ranges: `5` is one page, `2-4` is pages 2 to 4, `8-` runs to the last page, `-3`
 | JPG, WEBP, AVIF, HEIC | Finds the highest quality (92 down to 30) that fits, then scales the image down if quality alone isn't enough |
 | PNG, GIF, TIFF, BMP | Optimises the file, reduces it to a 256-colour palette, then scales it down |
 | PDF | Re-renders the PDF with Ghostscript, lowering image resolution step by step from 220 to 50 dpi |
-| DOCX, PPTX, XLSX, ODT, ODP, ODS, EPUB | Recompresses the pictures inside the file, leaving text and layout untouched |
+| DOCX, PPTX, XLSX, ODT, ODP, ODS | Recompresses the pictures inside the file, leaving text and layout untouched |
 | CSV, TXT, JSON and other text files | These can't shrink without losing data, so they're packed into a zip |
 | Zip of several results (PDF pages, split parts, sheets) | The limit applies to each file inside, using the method for that file's type |
 
@@ -84,8 +84,8 @@ The app still starts without them; only the conversions that need them fail.
 ### Install and run on Linux / macOS
 
 ```bash
-git clone <this-repo> file_conversion
-cd file_conversion
+git clone https://github.com/Ananthakrishnan-Jayadev/file-convertor.git
+cd file-convertor
 
 python3 -m venv backend/.venv
 backend/.venv/bin/pip install -e "backend[test]"   # also creates the `fileconvert` command
@@ -97,8 +97,8 @@ backend/.venv/bin/fileconvert serve
 ### Install and run on Windows (PowerShell)
 
 ```powershell
-git clone <this-repo> file_conversion
-cd file_conversion
+git clone https://github.com/Ananthakrishnan-Jayadev/file-convertor.git
+cd file-convertor
 
 py -m venv backend\.venv
 backend\.venv\Scripts\pip install -e "backend[test]"
@@ -114,6 +114,20 @@ Then open **http://localhost:8000**.
 
 Backend code changes reload automatically. After changing the UI, stop the server with Ctrl+C and
 run the command again so the UI is rebuilt.
+
+### Using the app
+
+The page has three tabs:
+
+1. **Convert files**: drop one or more files. Each gets its own "to" menu, filled in with a
+   sensible default; "Convert all to" changes them together. Pick a size limit if you need one,
+   press **Convert**, then download each file or **Download all as .zip**.
+2. **Combine into PDF**: drop images and PDFs, order them with the arrows, name the file, and
+   press **Combine**.
+3. **Split PDF**: drop one PDF, choose **One PDF per page** or type ranges, and press **Split PDF**.
+
+Under each result, a bar compares the original size, the new size and the size limit. If the limit
+couldn't be reached, the result says how close it got.
 
 ### Run with Docker
 
@@ -197,7 +211,7 @@ Set these as environment variables before running `fileconvert serve` or in `doc
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FC_MAX_UPLOAD_MB` | `200` | Largest file that can be uploaded |
+| `FC_MAX_UPLOAD_MB` | `200` | Largest upload per request; for Combine, the total of all files |
 | `FC_JOB_TTL` | `3600` | Seconds before uploaded and converted files are deleted |
 | `FC_WORKERS` | half the CPU cores | How many conversions run at the same time |
 | `FC_DATA_DIR` | system temp folder | Where uploads and results are stored |
