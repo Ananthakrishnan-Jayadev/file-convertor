@@ -28,9 +28,15 @@ Everything runs on your own machine, and uploaded files are deleted after an hou
 - **Split a PDF:** one PDF per page, or pick pages by clicking their thumbnails (or typing ranges
   such as `1-3, 5, 8-`) and get them as one PDF or one PDF per group. The size limit applies to
   each PDF you get back.
+- **Clear progress:** a running summary ("3 of 8 done · 1 over the limit"), elapsed time on
+  long jobs, the outcome in words, and a next step when a limit can't be met.
 - **Cancel anytime:** stop an upload or a conversion that's taking too long.
 - **Safe with your files:** contents are checked against the extension, conversions survive a
   server restart (or fail with a clear message), and everything is deleted after an hour.
+- **Works on a phone:** touch-sized controls and tap-to-select page ranges, so the app is usable
+  from a phone on the same network.
+- **Light or dark:** a cream light theme by default, with a dark mode switch that the browser
+  remembers.
 - **One command to run:** `fileconvert serve` builds the UI and serves the UI and API on port 8000.
 
 ## Supported conversions
@@ -81,7 +87,7 @@ Works on **Linux, macOS and Windows**.
 ### Requirements
 
 - Python 3.11 or newer
-- Node.js 18 or newer, with npm
+- Node.js 20.19+ or 22.12+, with npm (needed by Vite 8, which builds the UI)
 - LibreOffice, for documents, slides and spreadsheet-to-PDF
 - Ghostscript, for PDF compression
 - FFmpeg, for audio and video
@@ -128,25 +134,38 @@ Then open **http://localhost:8000**.
 - `--port 9000` uses a different port.
 - `--host 0.0.0.0` lets other devices on your network, such as your phone, reach the app.
 
+> **Keep it on your own network.** The app has no accounts or sign-in: anyone who can reach the
+> port can upload files and download results. Run it on your home network only, and don't
+> forward the port to the internet. Putting it online would need authentication first.
+
 Backend code changes reload automatically. After changing the UI, stop the server with Ctrl+C and
 run the command again so the UI is rebuilt.
 
 ### Using the app
 
-The page has three tabs:
+The page has three tabs. On a wide screen each tool shows its settings in a column on the left
+and the files or pages on the right; on narrow screens they stack.
 
-1. **Convert files**: drop one or more files. Each gets its own "to" menu, filled in with a
-   sensible default; "Convert all to" changes them together. Pick a size limit if you need one,
-   open **Image options** to resize, rotate or set quality, press **Convert**, then download each
-   file or **Download all as .zip**. For images, **Compare with original** shows both side by side.
+1. **Convert files**: drop one or more files (or choose them). Each gets its own "to" menu,
+   filled in with a sensible default; "Convert all to" changes them together. Pick a size limit
+   if you need one, open **Image options** to resize, rotate or set quality, press **Convert**,
+   then download each file or **Download all as .zip**. For images, **Compare with original**
+   shows both side by side. A file that failed gets a **Try again** button. Once files are in,
+   the drop area shrinks to an **Add more files** row, next to **Clear list**.
 2. **Combine into PDF**: drop images and PDFs, drag them into order (or use the arrows), name the
    file, and press **Combine**.
 3. **Split PDF**: drop one PDF and choose **One PDF per page**, or **Pages I choose** and click
-   page thumbnails (Shift+click selects a run). Then choose one PDF or one per group.
+   page thumbnails. To select a run of pages, Shift+click with a mouse, or on a phone turn on
+   **Select a range** and tap the first and last page. Typed ranges and the thumbnails stay in
+   sync. Then choose one PDF or one per group.
 
-Under each result, a bar compares the original size, the new size and the size limit. If the limit
-couldn't be reached, the result says how close it got. Changing the size limit or image options
-after converting marks those files to be converted again.
+Under each result, a bar compares the original size, the new size and the size limit (the teal
+flag). If the limit couldn't be reached, the result says how close it got and what to try next.
+Changing the size limit or image options after converting marks those files to be converted
+again. Results can be downloaded for an hour.
+
+The **Dark mode** button at the top right switches between the cream light theme and a dark
+brown one; the browser remembers the choice.
 
 ### Run with Docker
 
@@ -196,6 +215,9 @@ DELETE /api/jobs/{id}           ──▶ cancel, or delete the files now
   FFmpeg process the job started. Finished files are deleted after `FC_JOB_TTL` seconds.
 - **Previews** (frontend): image thumbnails come straight from the files in the browser; PDF
   pages are drawn in the browser with pdf.js, so nothing is uploaded just to preview it.
+- **Fonts** (frontend): Fraunces (headings) and Inter Tight (interface) are bundled through
+  Fontsource packages, so the page makes no requests outside your network and looks the same
+  offline.
 
 ### API
 
@@ -229,8 +251,20 @@ backend/
   tests/             pytest suite
   pyproject.toml     dependencies and the `fileconvert` command
 frontend/
-  src/               React UI: Convert, Combine into PDF and Split PDF tools, image options,
-                     thumbnails and page picker (pdf.js), size limit picker, size meter
+  src/
+    App.tsx          tabs, header and the dark mode switch
+    ConvertTool.tsx  Convert files: list, batch progress, image options, downloads
+    CombineTool.tsx  Combine into PDF: ordered list with drag and arrow reordering
+    SplitTool.tsx    Split PDF: pages, typed ranges, page picker
+    FileRow.tsx, SizeMeter.tsx, SizeLimitPicker.tsx, ImageOptionsPanel.tsx, JobResult.tsx,
+    DropZone.tsx, PagePicker.tsx, Thumb.tsx, Compare.tsx, Segmented.tsx, Icon.tsx
+                     shared pieces (the size meter draws original, result and limit on one scale)
+    api.ts           the only module that talks to the backend
+    useJob.ts, useElapsed.ts, pdf.ts, ranges.ts, format.ts
+                     job polling, timers, pdf.js previews, page ranges, format helpers
+    styles.css       all styles; colours, fonts and spacing are tokens at the top
+  public/favicon.svg
+PRODUCT.md           who the app is for, what it must never do, and its product principles
 Dockerfile           single image: builds the UI, installs LibreOffice, Ghostscript and FFmpeg
 docker-compose.yml
 ```
@@ -258,9 +292,14 @@ Set these as environment variables before running `fileconvert serve` or in `doc
   since GIFs grow very large.
 - **Running jobs can't resume after a restart**: they're marked as failed and need starting again.
 - **Very large PDFs** show page thumbnails gradually, starting from the first page.
+- **No undo for removing files**: "Clear list" and a row's remove button delete the results from
+  the server straight away.
+- **No sign-in**: meant for one person on a private network (see the note under Getting started).
 
 ## Roadmap
 
 - OCR for scanned PDFs (OCRmyPDF) and ebook formats (Calibre)
 - Upload progress bars for large files
+- Undo for "Clear list" and removing a file
+- Remember the last size limit, formats and image options between visits
 - Celery or RQ with Redis instead of the in-process queue, for running several servers

@@ -4,3 +4,7 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 *.egg-info/
+
+# Local AI-assistant tooling (installed skills, agents and editor settings), not project code.
+.claude/
+.opencode/
