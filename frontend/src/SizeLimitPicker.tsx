@@ -1,20 +1,32 @@
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
+import Segmented from "./Segmented";
 
-const PRESETS: { label: string; kb: number | null }[] = [
-  { label: "No limit", kb: null },
-  { label: "Under 5 MB", kb: 5 * 1024 },
-  { label: "Under 1 MB", kb: 1024 },
-  { label: "Under 500 KB", kb: 500 },
+const PRESETS: { key: string; label: string; kb: number | null }[] = [
+  { key: "none", label: "No limit", kb: null },
+  { key: "5mb", label: "Under 5 MB", kb: 5 * 1024 },
+  { key: "1mb", label: "Under 1 MB", kb: 1024 },
+  { key: "500kb", label: "Under 500 KB", kb: 500 },
 ];
+const CUSTOM = "custom";
+const OPTIONS = [...PRESETS.map(({ key, label }) => ({ key, label })), { key: CUSTOM, label: "Custom" }];
 const MIN_KB = 10;
 
-type Props = { value: number | null; onChange: (kb: number | null) => void; hint?: string };
+type Props = {
+  value: number | null;
+  onChange: (kb: number | null) => void;
+  /** Told whether the limit as typed can be used, so the tool can hold its button until it can. */
+  onValidChange?: (valid: boolean) => void;
+  hint?: string;
+};
 
-export default function SizeLimitPicker({ value, onChange, hint }: Props) {
+export default function SizeLimitPicker({ value, onChange, onValidChange, hint }: Props) {
   const isPreset = PRESETS.some((p) => p.kb === value);
   const [custom, setCustom] = useState(!isPreset);
   const [amount, setAmount] = useState("200");
   const [unit, setUnit] = useState<"KB" | "MB">("KB");
+  const ids = useId();
+  const labelId = `${ids}-label`;
+  const errorId = `${ids}-error`;
 
   function applyCustom(nextAmount: string, nextUnit: "KB" | "MB") {
     setAmount(nextAmount);
@@ -24,39 +36,31 @@ export default function SizeLimitPicker({ value, onChange, hint }: Props) {
     if (Number.isFinite(n) && kb >= MIN_KB) onChange(kb);
   }
 
+  function choose(key: string) {
+    if (key === CUSTOM) {
+      setCustom(true);
+      applyCustom(amount, unit);
+      return;
+    }
+    setCustom(false);
+    onChange(PRESETS.find((p) => p.key === key)?.kb ?? null);
+  }
+
   const customKb = Math.round(unit === "MB" ? Number(amount) * 1024 : Number(amount));
   const customInvalid = custom && !(customKb >= MIN_KB);
 
+  useEffect(() => {
+    onValidChange?.(!customInvalid);
+  }, [customInvalid, onValidChange]);
+
+  const chosen = custom ? CUSTOM : (PRESETS.find((p) => p.kb === value)?.key ?? null);
+
   return (
     <fieldset className="field size-limit">
-      <legend className="field-label">Size limit</legend>
-      <div className="segmented" role="radiogroup">
-        {PRESETS.map((p) => (
-          <button
-            key={p.label}
-            role="radio"
-            aria-checked={!custom && value === p.kb}
-            className={!custom && value === p.kb ? "seg is-on" : "seg"}
-            onClick={() => {
-              setCustom(false);
-              onChange(p.kb);
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
-        <button
-          role="radio"
-          aria-checked={custom}
-          className={custom ? "seg is-on" : "seg"}
-          onClick={() => {
-            setCustom(true);
-            applyCustom(amount, unit);
-          }}
-        >
-          Custom
-        </button>
-      </div>
+      <legend id={labelId} className="field-label">
+        Size limit
+      </legend>
+      <Segmented labelledBy={labelId} options={OPTIONS} value={chosen} onChange={choose} />
       {custom && (
         <div className="custom-limit">
           <label>
@@ -67,6 +71,7 @@ export default function SizeLimitPicker({ value, onChange, hint }: Props) {
               step="any"
               value={amount}
               aria-invalid={customInvalid}
+              aria-describedby={customInvalid ? errorId : undefined}
               onChange={(e) => applyCustom(e.target.value, unit)}
             />
           </label>
@@ -74,7 +79,11 @@ export default function SizeLimitPicker({ value, onChange, hint }: Props) {
             <option>KB</option>
             <option>MB</option>
           </select>
-          {customInvalid && <span className="status-error">Use at least {MIN_KB} KB.</span>}
+          {customInvalid && (
+            <span id={errorId} className="status-error">
+              Use at least {MIN_KB} KB.
+            </span>
+          )}
         </div>
       )}
       {hint && <p className="hint">{hint}</p>}

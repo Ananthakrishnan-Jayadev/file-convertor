@@ -1,3 +1,5 @@
+import type { FormatMap } from "./api";
+
 const ALIASES: Record<string, string> = {
   jpeg: "jpg", jpe: "jpg", tif: "tiff", heif: "heic", htm: "html", yml: "yaml", markdown: "md",
 };
@@ -22,6 +24,8 @@ const PREFERRED: Record<string, string[]> = {
   spreadsheet: ["xlsx", "csv"],
   pdf: ["docx"],
   data: ["csv", "yaml", "json"],
+  audio: ["mp3", "m4a"],
+  video: ["mp4", "webm"],
 };
 
 export function defaultTarget(ext: string, category: string, outputs: string[]): string {
@@ -36,4 +40,20 @@ export const CATEGORY_NAMES: Record<string, string> = {
   spreadsheet: "Spreadsheet",
   pdf: "PDF",
   data: "Data",
+  audio: "Audio",
+  video: "Video",
 };
+
+export type FormatGroup = { name: string; exts: string[] };
+
+/** Extensions sorted into their kinds of file, in a fixed order, so the list reads as groups instead of one wall. */
+export function groupFormats(formats: FormatMap, only?: string[]): FormatGroup[] {
+  const exts = Object.keys(formats).filter((e) => !only || only.includes(e));
+  const groups: FormatGroup[] = Object.entries(CATEGORY_NAMES)
+    .map(([category, name]) => ({ name, exts: exts.filter((e) => formats[e].category === category).sort() }))
+    .filter((g) => g.exts.length > 0);
+  // A kind the server knows but this list doesn't name yet still shows up.
+  const rest = exts.filter((e) => !(formats[e].category in CATEGORY_NAMES)).sort();
+  if (rest.length > 0) groups.push({ name: "Other", exts: rest });
+  return groups;
+}

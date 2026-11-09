@@ -1,32 +1,78 @@
 :root {
-  --paper: #eef1f4;
-  --surface: #ffffff;
-  --ink: #1b2a41;
-  --slate: #5b6b80;
-  --rule: #cfd6df;
-  --marker: #f2c230;
-  --ok: #2e7d5a;
-  --bad: #b4423a;
-  --focus: #2f6fd6;
+  /* Cream paper, near-white panels, coffee ink. */
+  --paper: #f8f3e9;
+  --surface: #fffdf9;
+  --ink: #3b2e25;
+  --slate: #6e5d50;
+  --rule: #ddd0c1;
+  /* Edges that identify a control (fields, selects): 3:1 against surface and paper. */
+  --edge: #8f7a68;
+  /* Teal means one thing: the size target. The chosen limit preset and the limit line on
+     every meter wear it, and nothing else does. It is the only cool colour on a warm page,
+     so it reads at a glance (4.6:1 on paper, and white text on it is 5.4:1). */
+  --marker: #247570;
+  --marker-edge: #1b5c58;
+  --ok: #376f47;
+  --bad: #a9483a;
+  --focus: #2f62c9;
+  /* Text on the teal marker. */
+  --on-marker: #ffffff;
+  /* Selected and active things (pages, the drop target, a pressed toggle): ink, not teal. */
+  --select: var(--ink);
+  --select-tint: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  /* Panels sit close to the cream paper in tone, so a hairline and a soft, low shadow
+     separate them instead of a stronger fill. */
+  --panel-edge: 0 0 0 1px color-mix(in srgb, var(--rule) 70%, transparent),
+    0 1px 3px color-mix(in srgb, var(--ink) 7%, transparent);
 
-  --display: "Bricolage Grotesque", "Segoe UI", sans-serif;
-  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  /* Drawn status glyphs, painted in the text colour through a mask. */
+  --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.25 3.25L13 4.75' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --icon-over: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 9.5h12M8 14V2.75M4.75 6L8 2.75 11.25 6' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --icon-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.25' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M8 4.75v3.75' stroke='black' stroke-width='1.75' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='11.1' r='1' fill='black'/%3E%3C/svg%3E");
+
+  /* Both faces ship with the app (Fontsource, imported in main.tsx): no requests leave the network.
+     Fraunces, a soft old-style serif, for headings; Inter Tight, a compact sans, for the interface. */
+  --display: "Fraunces Variable", Georgia, serif;
+  --body: "Inter Tight Variable", "Segoe UI", system-ui, sans-serif;
+
+  /* Spacing scale on a 4px base. Tight steps pair related things; wide steps separate groups. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-14: 56px;
+  --gutter: 16px;
+  /* Corner radii: fields and small parts, cards and rows, the full drop zone. */
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 20px;
+  /* Radio and checkbox size; hints and fields under an option indent by this plus the gap. */
+  --radio-size: 18px;
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #121a26;
-    --surface: #1a2433;
-    --ink: #e6ebf2;
-    --slate: #9aa8bb;
-    --rule: #2e3b4f;
-    --marker: #f5cd4d;
-    --ok: #5cbf8f;
-    --bad: #e2766d;
-    --focus: #7aa7ff;
-    color-scheme: dark;
-  }
+/* Light (cream) is the default. Dark is chosen with the switch in the header and remembered;
+   the system's dark mode doesn't switch it, since the owner picked the cream look. */
+:root[data-theme="dark"] {
+  /* Roasted brown night version of the same paper and ink. */
+  --paper: #1e1814;
+  --surface: #29211c;
+  --ink: #f2eae0;
+  --slate: #bcaa98;
+  --rule: #463a31;
+  --edge: #8a7563;
+  --marker: #5cc2b9;
+  --marker-edge: #5cc2b9;
+  --on-marker: #1e1814;
+  --panel-edge: 0 0 0 1px var(--rule);
+  --ok: #7fc493;
+  --bad: #e8907f;
+  --focus: #8db3ff;
+  color-scheme: dark;
 }
 
 *,
@@ -35,12 +81,18 @@
   box-sizing: border-box;
 }
 
+/* Keyboard focus and in-page scrolling stop short of the sticky action bar. */
+html {
+  scroll-padding-bottom: 7rem;
+}
+
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 17px/1.55 var(--body);
+  font: 16px/1.55 var(--body);
   -webkit-font-smoothing: antialiased;
+  accent-color: var(--ink);
 }
 
 button,
@@ -50,9 +102,70 @@ select {
   color: inherit;
 }
 
+/* No double-tap zoom delay on anything that is tapped. */
+button,
+summary,
+label,
+a {
+  touch-action: manipulation;
+}
+
+select {
+  max-width: 100%;
+}
+
+/* Copy that only makes sense with a mouse or trackpad, and its touch counterpart. */
+.fine-only {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .fine-only {
+    display: inline;
+  }
+  .coarse-only {
+    display: none;
+  }
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--focus) 28%, transparent);
+  color: var(--ink);
+}
+
+/* Failed, over the limit, under the limit: each said with a drawn glyph as well as colour. */
+.status-error::before,
+.banner-error::before,
+.outcome-met::before,
+.outcome-missed::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.4em;
+  vertical-align: -0.14em;
+  background-color: currentColor;
+  -webkit-mask: var(--glyph) center / contain no-repeat;
+  mask: var(--glyph) center / contain no-repeat;
+}
+
+.status-error,
+.banner-error {
+  --glyph: var(--icon-alert);
+}
+
+.outcome-met {
+  --glyph: var(--icon-check);
+}
+
+.outcome-missed {
+  --glyph: var(--icon-over);
 }
 
 .visually-hidden {
@@ -64,20 +177,57 @@ select {
   white-space: nowrap;
 }
 
+/* Cards and panels on the cream paper. */
+.file-row,
+.options,
+.order-list,
+.result {
+  box-shadow: var(--panel-edge);
+}
+
 /* --- page ------------------------------------------------------------------ */
 
 .page {
   max-width: 880px;
   margin: 0 auto;
-  padding: 56px 16px 96px;
+  padding: var(--s-14) max(var(--gutter), env(safe-area-inset-right, 0px)) 96px
+    max(var(--gutter), env(safe-area-inset-left, 0px));
+}
+
+/* With files in hand, the masthead steps back: a smaller title and no introduction. */
+.page.is-working {
+  padding-top: var(--s-8);
+}
+
+.page.is-working .masthead h1 {
+  font-size: clamp(1.4rem, 3vw, 1.75rem);
+  max-width: none;
+  margin-bottom: var(--s-5);
+}
+
+.masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.masthead-text {
+  min-width: 0;
+}
+
+.theme-switch {
+  flex: none;
+  margin-top: var(--s-1);
 }
 
 .masthead h1 {
   font-family: var(--display);
-  font-weight: 700;
-  font-size: clamp(2rem, 5vw, 3.1rem);
-  line-height: 1.05;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  font-size: clamp(2.1rem, 4.6vw, 3.4rem);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
   max-width: 16ch;
   margin: 0 0 16px;
 }
@@ -85,13 +235,18 @@ select {
 .lede {
   color: var(--slate);
   max-width: 62ch;
-  margin: 0 0 32px;
+  margin: 0 0 var(--s-8);
 }
 
+/* Spacing comes from where a banner sits (see "rhythm" below), not from the banner. */
 .banner {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin: 0 0 24px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-s);
+  margin: 0;
+}
+
+.page > .banner {
+  margin-bottom: var(--s-6);
 }
 
 .banner-error {
@@ -112,6 +267,7 @@ select {
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 120ms, border-color 120ms, color 120ms;
 }
 
 .btn:disabled {
@@ -119,9 +275,32 @@ select {
   cursor: not-allowed;
 }
 
+.btn:active:not(:disabled) {
+  background: var(--select-tint);
+}
+
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    background: var(--select-tint);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 86%, var(--paper));
+  }
+  .btn-quiet:hover:not(:disabled) {
+    color: var(--ink);
+  }
+  .btn-download:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ok) 10%, transparent);
+  }
+}
+
 .btn-primary {
   background: var(--ink);
   color: var(--paper);
+}
+
+.btn-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 80%, var(--paper));
 }
 
 .btn-quiet {
@@ -141,20 +320,39 @@ select {
 }
 
 .icon-btn {
+  display: inline-grid;
+  place-items: center;
   width: 32px;
   height: 32px;
   flex: none;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
   color: var(--slate);
-  font-size: 1.4rem;
-  line-height: 1;
   cursor: pointer;
+  transition: background-color 120ms, color 120ms;
 }
 
-.icon-btn:hover:not(:disabled) {
+.icon {
+  display: block;
+  flex: none;
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.icon-btn:active:not(:disabled) {
   background: var(--paper);
+}
+
+@media (hover: hover) {
+  .icon-btn:hover:not(:disabled) {
+    background: var(--paper);
+    color: var(--ink);
+  }
 }
 
 /* --- tool tabs ------------------------------------------------------------- */
@@ -178,8 +376,10 @@ select {
   cursor: pointer;
 }
 
-.tab:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--ink);
+  }
 }
 
 .tab.is-on {
@@ -195,15 +395,16 @@ select {
   gap: 8px;
   padding: 48px 24px 32px;
   border: 2px dashed var(--rule);
-  border-radius: 20px;
+  border-radius: var(--radius-l);
   background: var(--surface);
   text-align: center;
   transition: border-color 120ms, background-color 120ms;
 }
 
 .dropzone.is-over {
-  border-color: var(--ink);
-  background: color-mix(in srgb, var(--marker) 14%, var(--surface));
+  border-color: var(--select);
+  border-style: solid;
+  background: var(--select-tint);
 }
 
 .dropzone.is-disabled {
@@ -213,17 +414,13 @@ select {
 .dropzone-title {
   font-family: var(--display);
   font-weight: 500;
-  font-size: 1.6rem;
-  margin: 0;
-}
-
-.dropzone-hint {
-  color: var(--slate);
+  font-size: 1.7rem;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
 .dropzone-formats {
-  margin: 16px 0 0;
+  margin: var(--s-4) 0 0;
   max-width: 60ch;
   color: var(--slate);
   font-size: 0.8rem;
@@ -231,18 +428,72 @@ select {
   word-spacing: 0.4em;
 }
 
-/* --- controls -------------------------------------------------------------- */
-
-.workbench {
-  margin-top: 40px;
+/* Formats grouped by kind: name in a narrow column, extensions beside it. */
+.format-groups {
+  display: grid;
+  gap: var(--s-1);
+  width: min(100%, 60ch);
+  text-align: start;
 }
+
+.format-group {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--s-3);
+}
+
+.format-group dt {
+  font-weight: 700;
+  letter-spacing: 0;
+  word-spacing: normal;
+}
+
+.format-group dd {
+  margin: 0;
+}
+
+/* After files are added: one quiet row, so the tool's own button is the only primary. */
+.dropzone.is-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-5);
+  border-width: 1.5px;
+  border-radius: var(--radius-m);
+  background: transparent;
+  text-align: start;
+}
+
+.dropzone.is-compact .dropzone-title {
+  margin-right: auto;
+  font-family: var(--body);
+  font-weight: 400;
+  font-size: 0.94rem;
+  color: var(--slate);
+}
+
+.dropzone.is-compact.is-over {
+  background: var(--select-tint);
+}
+
+/* "Drop" means nothing on a touch screen; the button says it all there. */
+@media (pointer: coarse) {
+  .dropzone.is-compact .dropzone-title {
+    display: none;
+  }
+  .dropzone.is-compact {
+    padding-left: var(--s-2);
+  }
+}
+
+/* --- controls -------------------------------------------------------------- */
 
 .controls {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 20px 32px;
-  margin-bottom: 20px;
+  gap: var(--s-5) var(--s-8);
 }
 
 .field {
@@ -264,8 +515,8 @@ select,
 input[type="number"],
 input[type="text"] {
   padding: 8px 10px;
-  border: 1.5px solid var(--rule);
-  border-radius: 8px;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-s);
   background: var(--surface);
 }
 
@@ -286,20 +537,33 @@ input[aria-invalid="true"] {
 .seg {
   padding: 7px 14px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-s);
   background: transparent;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 120ms;
 }
 
-.seg:hover:not(.is-on) {
-  background: var(--paper);
+@media (hover: hover) {
+  .seg:hover:not(.is-on) {
+    background: var(--paper);
+  }
 }
 
-/* The chosen limit wears the same yellow as the limit marker on every meter. */
+/* Any other selected segment takes the ink selection used everywhere else. */
 .seg.is-on {
+  background: var(--select-tint);
+  box-shadow: inset 0 0 0 1.5px var(--select);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* The chosen limit wears the same teal as the limit line on every meter, edged so it
+   stands out from its container in light mode as well as dark. Only the limit picker does. */
+.size-limit .seg.is-on {
   background: var(--marker);
-  color: #1b2a41;
+  box-shadow: inset 0 0 0 1.5px var(--marker-edge);
+  color: var(--on-marker);
   font-weight: 700;
 }
 
@@ -327,24 +591,15 @@ input[aria-invalid="true"] {
 .file-row {
   display: grid;
   gap: 12px;
-  padding: 16px 20px 18px;
-  border-radius: 14px;
+  padding: var(--s-4) var(--s-5) 18px;
+  border-radius: var(--radius-m);
   background: var(--surface);
-  border-left: 4px solid var(--rule);
 }
 
-.file-row.phase-done {
-  border-left-color: var(--ok);
-}
-
+/* Status is already in the text and the size meter; only failures get an extra cue. */
 .file-row.phase-error,
 .file-row.phase-unsupported {
-  border-left-color: var(--bad);
-}
-
-.file-row.phase-uploading,
-.file-row.phase-working {
-  border-left-color: var(--marker);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bad) 45%, transparent);
 }
 
 .file-head {
@@ -412,22 +667,236 @@ input[aria-invalid="true"] {
   color: var(--bad);
 }
 
+/* The outcome against the limit, said in words as well as by the meter's colour. */
+.outcome {
+  display: block;
+  font-weight: 700;
+}
+
+.outcome-met {
+  color: var(--ok);
+}
+
+.outcome-missed {
+  color: var(--bad);
+}
+
+.done-gone {
+  flex-basis: 100%;
+}
+
+/* Running time on a long job: fixed-width digits so the clock doesn't jitter. */
+.elapsed {
+  color: var(--slate);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- previews ------------------------------------------------------------- */
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 0.9rem;
+}
+
+.file-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.thumb {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background: var(--paper);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--slate);
+}
+
+.compare-toggle {
+  justify-self: start;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.compare figure {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.compare img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: var(--radius-s);
+  background: repeating-conic-gradient(var(--paper) 0 25%, var(--surface) 0 50%) 0 0 / 16px 16px;
+}
+
+.compare figcaption {
+  color: var(--slate);
+  font-size: 0.9rem;
+}
+
+/* --- image options --------------------------------------------------------- */
+
+.options {
+  border-radius: var(--radius-m);
+  background: var(--surface);
+}
+
+/* Label and current settings on the left, an open/closed chevron on the right. */
+.options summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--s-4);
+  padding: 14px var(--s-5);
+  list-style: none;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+}
+
+.options summary::-webkit-details-marker {
+  display: none;
+}
+
+.options summary > * {
+  grid-column: 1;
+}
+
+.options summary::after {
+  content: "";
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 9px;
+  height: 9px;
+  margin: 0 4px 4px;
+  border-right: 2px solid var(--slate);
+  border-bottom: 2px solid var(--slate);
+  transform: rotate(45deg);
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.options[open] summary::after {
+  margin: 4px 4px 0;
+  transform: rotate(-135deg);
+}
+
+@media (hover: hover) {
+  .options summary:hover::after {
+    border-color: var(--ink);
+  }
+}
+
+.options[open] summary {
+  border-bottom: 1px solid var(--rule);
+  border-radius: var(--radius-m) var(--radius-m) 0 0;
+}
+
+.options-body {
+  display: grid;
+  gap: 20px;
+  padding: 18px 20px 20px;
+}
+
+.options-body > .hint {
+  margin-top: -16px;
+  padding-left: calc(var(--radio-size) + 8px);
+}
+
+.inline-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--slate);
+}
+
+.inline-input input[type="number"] {
+  width: 96px;
+}
+
+.inline-input input[type="range"] {
+  width: min(280px, 60vw);
+  accent-color: var(--ink);
+}
+
+.quality-value {
+  min-width: 2.5ch;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.reset-options {
+  justify-self: start;
+}
+
+.status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.status-line > .done {
+  flex: 1;
+}
+
+.cancel-btn {
+  justify-self: start;
+}
+
 /* --- combine: ordered list -------------------------------------------------- */
 
 .order-list {
   list-style: none;
-  margin: 0 0 24px;
+  margin: 0;
   padding: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-m);
   background: var(--surface);
 }
 
 .order-row {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 2rem 40px minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 12px;
   padding: 8px 12px 8px 16px;
+}
+
+/* Dragging rows only works with a mouse or trackpad; on touch the arrows do the job. */
+@media (pointer: fine) {
+  .order-row[draggable="true"] {
+    cursor: grab;
+  }
+}
+
+.order-row.is-dragging {
+  opacity: 0.4;
+}
+
+/* Where the dragged file will land. */
+.order-row.is-drop-target {
+  box-shadow: inset 0 3px 0 var(--select);
 }
 
 .order-row + .order-row {
@@ -437,7 +906,8 @@ input[aria-invalid="true"] {
 /* The page order is real information, so the number gets the display face. */
 .order-num {
   font-family: var(--display);
-  font-weight: 700;
+  font-weight: 600;
+  font-variant-numeric: lining-nums;
   font-size: 1.15rem;
   color: var(--slate);
 }
@@ -450,6 +920,12 @@ input[aria-invalid="true"] {
 
 .order-buttons {
   display: flex;
+  gap: var(--s-1);
+}
+
+/* Remove stands apart from the arrows, so reordering can't delete a file by a slip. */
+.order-remove {
+  margin-left: var(--s-2);
 }
 
 .name-input {
@@ -476,15 +952,16 @@ input[aria-invalid="true"] {
 }
 
 .radio input {
-  width: 18px;
-  height: 18px;
+  flex: none;
+  width: var(--radio-size);
+  height: var(--radio-size);
+  margin: 0;
   accent-color: var(--ink);
 }
 
 .ranges {
   display: grid;
-  gap: 4px;
-  margin: 4px 0 0 26px;
+  gap: var(--s-1);
 }
 
 .ranges input {
@@ -497,27 +974,139 @@ input[aria-invalid="true"] {
   font-size: 0.9rem;
 }
 
-.workbench > .hint {
-  margin-bottom: 10px;
-}
-
-.workbench > .file-row {
-  margin-bottom: 20px;
-}
-
 .result {
   display: grid;
   gap: 12px;
-  margin-top: 20px;
-  padding: 16px 20px 18px;
-  border-radius: 14px;
+  padding: var(--s-4) var(--s-5) 18px;
+  border-radius: var(--radius-m);
   background: var(--surface);
+}
+
+.select-pages {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.page-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.page-picker-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.page-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* "Select a range" is on: pressed in ink until the range is finished. */
+.range-toggle.is-on {
+  border-color: var(--select);
+  background: var(--select-tint);
+  color: var(--ink);
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 12px;
+  max-height: 520px;
+  overflow-y: auto;
+  /* Room for the focus ring, which a scrolling box would otherwise clip. */
+  padding: 6px;
+  scrollbar-color: var(--edge) transparent;
+}
+
+.page-tile {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 120ms, background-color 120ms;
+}
+
+@media (hover: hover) {
+  .page-tile:hover {
+    border-color: var(--rule);
+  }
+}
+
+/* The first page of a range being chosen: marked, but not yet selected. */
+.page-tile.is-anchor {
+  border-style: dashed;
+  border-color: var(--ink);
+}
+
+/* Selected pages: an ink outline and a check, so selection never depends on colour alone. */
+.page-tile.is-on {
+  border-color: var(--select);
+  background: var(--select-tint);
+}
+
+.page-tile.is-on::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--select);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.page-tile.is-on::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  background-color: var(--surface);
+  -webkit-mask: var(--icon-check) center / contain no-repeat;
+  mask: var(--icon-check) center / contain no-repeat;
+}
+
+.page-img {
+  display: block;
+  aspect-ratio: 1 / 1.3;
+  border-radius: 4px;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.page-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.page-num {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.page-tile.is-on .page-num {
+  color: var(--ink);
 }
 
 /* --- size meter ------------------------------------------------------------ */
 
 .meter {
   position: relative;
+  padding-top: 12px;
   padding-bottom: 22px;
 }
 
@@ -535,8 +1124,10 @@ input[aria-invalid="true"] {
   transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* The original stays faint, but its end is drawn in full slate so its length reads at 3:1. */
 .meter-input {
   background: color-mix(in srgb, var(--slate) 35%, transparent);
+  box-shadow: inset -2px 0 0 var(--slate);
 }
 
 .meter-input.is-over {
@@ -555,55 +1146,301 @@ input[aria-invalid="true"] {
   background: var(--bad);
 }
 
+/* The landing: when a result first arrives, its bar shrinks from the original's length to the
+   result (driven from SizeMeter, on clip-path only), turning colour as it crosses the limit line.
+   The sizes in words settle in as the bar comes to rest. The text is in the page from the start,
+   so screen readers announce it straight away; only its appearance waits. */
+@media (prefers-reduced-motion: no-preference) {
+  .meter.is-landing + .done > .status,
+  .meter.is-landing + .status-line .done > .status {
+    animation: meter-settle 340ms cubic-bezier(0.22, 1, 0.36, 1) 560ms backwards;
+  }
+}
+
+@keyframes meter-settle {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+/* The limit is a flag on a pole: a deep teal pole that holds 3:1 against the track and bars,
+   capped with the teal flag that matches the chosen preset. */
 .meter-limit {
   position: absolute;
-  top: -5px;
-  bottom: -5px;
-  width: 4px;
-  margin-left: -2px;
+  z-index: 1;
+  top: -6px;
+  bottom: -6px;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 1.5px;
+  background: var(--marker-edge);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.meter-limit::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 12px;
+  height: 8px;
+  transform: translateX(-50%);
+  border: 1.5px solid var(--marker-edge);
   border-radius: 2px;
   background: var(--marker);
   box-shadow: 0 0 0 1.5px var(--surface);
 }
 
+/* Centred under the marker, or lined up with it near either edge so it never leaves the card. */
 .meter-limit-label {
   position: absolute;
   bottom: 0;
-  transform: translateX(-50%);
   font-size: 0.78rem;
   color: var(--slate);
   white-space: nowrap;
 }
 
+.meter-limit-label.at-centre {
+  transform: translateX(-50%);
+}
+
+.meter-limit-label.at-start {
+  transform: translateX(-2px);
+}
+
+.meter-limit-label.at-end {
+  transform: translateX(2px);
+}
+
 /* --- footer actions -------------------------------------------------------- */
 
+/* The main button stays in reach on long lists: it rides the bottom of the screen until
+   the list ends, then settles in place. Opaque, so rows passing under it don't show through. */
 .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 24px;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0 calc(var(--s-3) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
 }
+
+/* Batch progress sits beside the Convert button, where the eye is after clicking it. */
+.batch-status {
+  margin: 0 0 0 auto;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Why the main button is unavailable, when nothing else on screen says so. */
+.action-hint {
+  flex: 1 1 14rem;
+}
+
+/* --- rhythm --------------------------------------------------------------- */
+
+/* One step between the parts of a tool; tighter where two parts read as one. */
+[role="tabpanel"] > * + * {
+  margin-top: var(--s-5);
+}
+
+/* A tool's work area: settings (work-side) and the files or pages (work-main). On narrow
+   screens they stack; on wide ones they sit side by side (see "wide screens" below). */
+.workbench,
+.work-side,
+.work-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+/* Combine's settings describe the finished PDF, so on narrow screens they follow the list. */
+.workbench.side-after > .work-side {
+  order: 2;
+}
+
+.work-main > .hint + .order-list,
+.work-side > .split-mode + .select-pages {
+  margin-top: calc(var(--s-3) - var(--s-5));
+}
+
+.work-main > .actions + .expiry-hint {
+  margin-top: calc(var(--s-1) - var(--s-5));
+}
+
+/* --- wide screens --------------------------------------------------------- */
+
+/* From laptop width up the page spreads to about 85% of the window instead of a narrow
+   column, and each tool puts its settings in a column beside the work. */
+@media (min-width: 1024px) {
+  .page {
+    max-width: 1680px;
+    width: 85vw;
+  }
+}
+
+@media (min-width: 1100px) {
+  .workbench.has-side {
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    column-gap: var(--s-10);
+    align-items: start;
+  }
+  .workbench.side-after > .work-side {
+    order: 0;
+  }
+  /* Settings are a column of their own here, so they stack one per line. */
+  .work-side .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* Two file cards per row once there is room for them. */
+  .file-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    align-items: start;
+  }
+  /* The page previews get the room the settings column leaves, so the grid can show
+     more of the document without its own scroll box. */
+  .work-main .page-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* --- touch ---------------------------------------------------------------- */
+
+/* Any touch screen gets 44px targets with at least 8px between neighbours. */
+@media (any-pointer: coarse) {
+  :root {
+    --radio-size: 22px;
+  }
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .order-buttons {
+    gap: var(--s-2);
+  }
+  .order-remove {
+    margin-left: var(--s-4);
+  }
+  .btn-small,
+  .btn-download {
+    min-height: 44px;
+  }
+  .btn-small {
+    padding: 8px 14px;
+  }
+  .segmented {
+    gap: var(--s-2);
+  }
+  .seg {
+    min-height: 44px;
+  }
+  .field {
+    gap: var(--s-2);
+  }
+  .radio {
+    min-height: 44px;
+  }
+  select,
+  input[type="number"],
+  input[type="text"] {
+    min-height: 44px;
+  }
+}
+
+/* --- phone ---------------------------------------------------------------- */
 
 @media (max-width: 560px) {
   .page {
-    padding-top: 32px;
+    padding-top: var(--s-8);
   }
   .file-row {
     padding: 14px 14px 16px;
   }
-  .meter-limit-label {
-    transform: translateX(-80%);
+  .dropzone {
+    padding: var(--s-8) var(--s-4) var(--s-6);
   }
+  .format-group {
+    grid-template-columns: 6rem minmax(0, 1fr);
+  }
+
+  /* Settings stack, one per line, and segments share each row instead of leaving gaps. */
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .seg {
+    flex: 1 1 auto;
+  }
+  .options summary {
+    padding: 14px var(--s-4);
+  }
+  .options-body {
+    padding: var(--s-4);
+  }
+  .inline-input input[type="range"] {
+    flex: 1 1 160px;
+    width: auto;
+  }
+
+  /* Name on top, arrows under it, Remove alone at the far end of the row. */
   .order-row {
-    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+    grid-template-columns: 1.5rem 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "num thumb name remove"
+      "num thumb moves remove";
+    row-gap: var(--s-1);
+  }
+  .order-num {
+    grid-area: num;
+  }
+  .order-row > .thumb {
+    grid-area: thumb;
+  }
+  .order-row > .file-name {
+    grid-area: name;
+  }
+  .order-buttons {
+    grid-area: moves;
+    justify-self: start;
+  }
+  .order-remove {
+    grid-area: remove;
+    margin-left: 0;
   }
   .order-size {
     display: none;
   }
+
+  /* The page grid flows with the page, so there is one scroll, not a box inside a box. */
+  .page-grid {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: var(--s-2);
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .compare {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     transition: none !important;
+    animation: none !important;
   }
 }
