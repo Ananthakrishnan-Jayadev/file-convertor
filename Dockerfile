@@ -1,8 +1,9 @@
 # --- build the frontend ---
 FROM node:22-slim AS web
 WORKDIR /web
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+# The exact versions in package-lock.json, every time.
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -16,7 +17,9 @@ WORKDIR /app
 COPY backend/ backend/
 RUN pip install --no-cache-dir -e ./backend
 COPY --from=web /web/dist frontend/dist
-ENV FC_DATA_DIR=/data
+ENV FC_DATA_DIR=/data \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 WORKDIR /app/backend
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,13 @@
+# Keep the build context small: only source goes into the image.
+.git
+data
+.env
+backend/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+frontend/node_modules
+frontend/dist
+.impeccable
+.claude
+.opencode

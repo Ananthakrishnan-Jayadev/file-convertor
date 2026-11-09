@@ -172,7 +172,17 @@ brown one; the browser remembers the choice.
 The image includes LibreOffice, Ghostscript and FFmpeg, so nothing else needs installing:
 
 ```bash
-docker compose up --build      # http://localhost:8000
+mkdir -p data
+docker compose up -d --build   # http://localhost:8010
+```
+
+### Run on a home server
+
+[`deploy/README.md`](deploy/README.md) covers setting it up on an always-on Ubuntu machine with
+Docker. After that, every update is one command from your laptop:
+
+```bash
+ssh ananthu@192.168.1.113 '~/file-convertor/deploy/deploy.sh'
 ```
 
 ## Tests
@@ -265,13 +275,18 @@ frontend/
     styles.css       all styles; colours, fonts and spacing are tokens at the top
   public/favicon.svg
 PRODUCT.md           who the app is for, what it must never do, and its product principles
+deploy/
+  deploy.sh          pulls the latest code, rebuilds and restarts the container on the server
+  README.md          one-time server setup, updates, rollback and troubleshooting
 Dockerfile           single image: builds the UI, installs LibreOffice, Ghostscript and FFmpeg
-docker-compose.yml
+docker-compose.yml   the server container: port 8010, data in ./data, restarts by itself
 ```
 
 ## Configuration
 
-Set these as environment variables before running `fileconvert serve` or in `docker-compose.yml`.
+Set these as environment variables before running `fileconvert serve`. With Docker, put
+`FC_PORT`, `FC_WORKERS` and `FC_MAX_UPLOAD_MB` in a `.env` file next to `docker-compose.yml`
+(see [`deploy/README.md`](deploy/README.md)).
 
 | Variable | Default | Meaning |
 |---|---|---|

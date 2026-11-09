@@ -5,6 +5,10 @@ frontend/node_modules/
 frontend/dist/
 *.egg-info/
 
+# Server only: settings and the app's stored files (see deploy/README.md).
+.env
+data/
+
 # Local AI-assistant tooling (installed skills, agents and editor settings), not project code.
 .claude/
 .opencode/
