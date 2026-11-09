@@ -10,8 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
-from . import converters, pdftools  # noqa: F401  (importing converters registers them)
-from .jobs import DATA_DIR, Job, JobStore
+from . import converters, pdftools, sniff  # noqa: F401  (importing converters registers them)
+from .converters.images import ImageOptions
+from .jobs import ACTIVE, DATA_DIR, Job, JobStore
 from .registry import format_map, normalize
 
 MAX_UPLOAD = int(os.environ.get("FC_MAX_UPLOAD_MB", 200)) * 1024 * 1024
@@ -57,7 +58,32 @@ async def save_upload(job: Job, file: UploadFile, dest: Path, budget: int) -> in
     if size == 0:
         store.discard(job)
         raise HTTPException(400, f"{file.filename or 'The file'} is empty.")
+    with dest.open("rb") as fh:
+        problem = sniff.mismatch(normalize(dest.suffix), fh.read(sniff.HEAD_BYTES))
+    if problem:
+        store.discard(job)
+        raise HTTPException(415, f"{file.filename}: {problem}" if file.filename else problem)
     return size
+
+
+def image_options(
+    src_category: str,
+    width: int | None, height: int | None, scale: int | None,
+    rotate: int, quality: int | None, keep_metadata: bool,
+) -> ImageOptions | None:
+    opts = ImageOptions(width=width, height=height, scale=scale, rotate=rotate,
+                        quality=quality, keep_metadata=keep_metadata)
+    if opts.is_default():
+        return None
+    if src_category != "image":
+        raise HTTPException(400, "Resize, rotate, quality and photo details only apply to images.")
+    for name, value, low, high in (("Width", width, 1, 20000), ("Height", height, 1, 20000),
+                                   ("Scale", scale, 1, 100), ("Quality", quality, 1, 100)):
+        if value is not None and not low <= value <= high:
+            raise HTTPException(400, f"{name} must be between {low} and {high}.")
+    if rotate not in (0, 90, 180, 270):
+        raise HTTPException(400, "Rotation must be 0, 90, 180 or 270 degrees.")
+    return opts
 
 
 @app.post("/api/jobs", status_code=201)
@@ -65,6 +91,12 @@ async def create_job(
     file: UploadFile = File(...),
     target_format: str = Form(...),
     max_size_kb: int | None = Form(None),
+    width: int | None = Form(None, description="images: fit within this width (px)"),
+    height: int | None = Form(None, description="images: fit within this height (px)"),
+    scale: int | None = Form(None, description="images: percent of the original size, 1-100"),
+    rotate: int = Form(0, description="images: degrees clockwise, 0/90/180/270"),
+    quality: int | None = Form(None, description="images: 1-100 for JPG/WEBP/AVIF/HEIC"),
+    keep_metadata: bool = Form(False, description="images: keep date, camera and location"),
 ) -> dict:
     filename = file.filename or ""
     src_ext = normalize(Path(filename).suffix)
@@ -73,11 +105,12 @@ async def create_job(
     target = normalize(target_format)
     if target not in FORMATS[src_ext]["outputs"]:
         raise HTTPException(400, f"A .{src_ext} file can't be converted to .{target}.")
+    options = image_options(FORMATS[src_ext]["category"], width, height, scale, rotate, quality, keep_metadata)
 
-    job = store.create(filename, target, check_limit(max_size_kb))
+    job = store.create(filename, target, check_limit(max_size_kb), quality_cap=options.quality if options else None)
     src = job.dir / "in" / f"{safe_stem(filename)}.{src_ext}"
     await save_upload(job, file, src, MAX_UPLOAD)
-    store.submit(job, src)
+    store.submit(job, src, options)
     return job.public()
 
 
@@ -109,9 +142,11 @@ async def combine_pdf(
 async def split_pdf(
     file: UploadFile = File(...),
     ranges: str = Form("", description="e.g. '1-3, 5, 8-'; leave empty for one PDF per page"),
+    together: bool = Form(False, description="put all the ranges into one PDF"),
     max_size_kb: int | None = Form(None),
 ) -> dict:
-    """One PDF per page, or one PDF per range. The size limit applies to each part."""
+    """One PDF per page, one PDF per range, or (with `together`) one PDF of the chosen pages.
+    The size limit applies to each PDF produced."""
     filename = file.filename or ""
     if normalize(Path(filename).suffix) != "pdf":
         raise HTTPException(415, "Only PDF files can be split.")
@@ -132,13 +167,24 @@ async def split_pdf(
         store.discard(job)
         raise HTTPException(400, "This file couldn't be opened as a PDF.") from None
 
-    store.submit_work(job, lambda out_dir: pdftools.split(src, out_dir, parsed), [src])
+    store.submit_work(job, lambda out_dir: pdftools.split(src, out_dir, parsed, together), [src])
     return job.public()
 
 
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str) -> dict:
     return _job_or_404(job_id).public()
+
+
+@app.delete("/api/jobs/{job_id}")
+def delete_job(job_id: str) -> dict:
+    """Cancel a job that's still waiting or running, or delete a finished job and its files."""
+    job = _job_or_404(job_id)
+    if job.status in ACTIVE:
+        store.cancel(job)
+        return {"id": job.id, "status": "cancelled"}
+    store.discard(job)
+    return {"id": job.id, "status": "deleted"}
 
 
 @app.get("/api/jobs/{job_id}/download")

@@ -1,7 +1,6 @@
 """Office documents via headless LibreOffice, plus Markdown via an HTML step."""
 
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
@@ -45,10 +44,10 @@ def run_soffice(src: Path, out_dir: Path, fmt: str, filters: dict[str, str]) -> 
         if src.suffix.lower() in (".html", ".htm"):
             cmd.append("--infilter=HTML (StarWriter)")  # open in Writer, not Writer/Web
         cmd += ["--convert-to", filters[fmt], "--outdir", tmp_out, str(src)]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+        _, output = tools.run(cmd, timeout=TIMEOUT)
         produced = Path(tmp_out) / f"{src.stem}.{fmt}"
         if not produced.exists():
-            detail = (proc.stderr or proc.stdout).strip()[-300:]
+            detail = output.strip()[-300:]
             raise RuntimeError(f"LibreOffice couldn't convert this file. {detail}".strip())
         dst = out_dir / produced.name
         shutil.move(produced, dst)

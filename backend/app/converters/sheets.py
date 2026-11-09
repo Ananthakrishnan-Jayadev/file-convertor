@@ -16,7 +16,16 @@ DELIMITERS = ",;\t|"
 SNIFF_CHARS = 20_000
 
 
+# A plain number: optional sign, digits, optional decimals or exponent.
+NUMBER = r"[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?"
+# Looks like a number but must stay text: leading zeros (00123, 007) or too many digits for
+# Excel to hold exactly (card numbers, long IDs).
+KEEP_AS_TEXT = r"[+-]?0\d.*|.*\d{16,}.*"
+
+
 def _decode(raw: bytes) -> str:
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):  # Excel's "Unicode Text" export is UTF-16
+        return raw.decode("utf-16")
     # latin-1 accepts any byte sequence, so this always returns something.
     for encoding in ("utf-8-sig", "cp1252"):
         try:
@@ -35,11 +44,25 @@ def _sniff_delimiter(sample: str) -> str:
         return ","
 
 
+def _numbers_where_safe(df: pd.DataFrame) -> pd.DataFrame:
+    """Turn a text column into numbers only when every value is a plain number and none
+    would lose information, so 00123 or a 16-digit ID stays exactly as written."""
+    for col in df.columns:
+        values = df[col].dropna().astype(str).str.strip()
+        if values.empty or not values.str.fullmatch(NUMBER).all() or values.str.fullmatch(KEEP_AS_TEXT).any():
+            continue
+        df[col] = pd.to_numeric(df[col])
+    return df
+
+
 def read_sheets(src: Path, ext: str) -> dict[str, pd.DataFrame]:
     if ext in ("csv", "tsv"):
         text = _decode(src.read_bytes())
         sep = "\t" if ext == "tsv" else _sniff_delimiter(text[:SNIFF_CHARS])
-        return {src.stem: pd.read_csv(io.StringIO(text), sep=sep)}
+        # Read everything as text, with only empty cells as missing ("NA" or "null" stay as typed),
+        # then convert the columns that are safely numeric.
+        df = pd.read_csv(io.StringIO(text), sep=sep, dtype=str, keep_default_na=False, na_values=[""])
+        return {src.stem: _numbers_where_safe(df)}
     if ext == "json":
         data = json.loads(src.read_text(encoding="utf-8-sig"))
         # {"Sheet1": [...], "Sheet2": [...]} is how we write multi-sheet JSON, so read it back the same way.

@@ -117,3 +117,21 @@ def test_single_range_gives_a_pdf_not_a_zip(tmp_path, out_dir):
     dst = pdftools.split(src, out_dir, [(2, 3)])
     assert dst.name == "book-pages2-3.pdf"
     assert page_texts(dst) == ["Page 2", "Page 3"]
+
+
+def test_split_together_makes_one_pdf_in_given_order(tmp_path, out_dir):
+    src = make_pdf(tmp_path / "book.pdf", 6)
+    dst = pdftools.split(src, out_dir, pdftools.parse_ranges("5, 1-2", 6), together=True)
+    assert dst.name == "book-selected.pdf"
+    assert page_texts(dst) == ["Page 5", "Page 1", "Page 2"]
+
+
+def test_split_together_single_range_keeps_range_name(tmp_path, out_dir):
+    src = make_pdf(tmp_path / "book.pdf", 4)
+    dst = pdftools.split(src, out_dir, [(2, 3)], together=True)
+    assert dst.name == "book-pages2-3.pdf"
+
+
+def test_split_together_without_ranges_still_splits_every_page(tmp_path, out_dir):
+    src = make_pdf(tmp_path / "book.pdf", 2)
+    assert pdftools.split(src, out_dir, None, together=True).suffix == ".zip"

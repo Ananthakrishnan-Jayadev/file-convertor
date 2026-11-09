@@ -1,6 +1,7 @@
 import json
 import zipfile
 
+import openpyxl
 import pandas as pd
 import xmltodict
 import yaml
@@ -52,6 +53,28 @@ def test_pipe_delimited_csv(tmp_path, out_dir):
     src.write_text("id|label\n1|one\n2|two\n", encoding="utf-8")
     df = pd.read_excel(convert_sheet(src, out_dir, "xlsx"))
     assert list(df.columns) == ["id", "label"]
+
+
+def test_leading_zeros_and_long_ids_stay_text(tmp_path, out_dir):
+    src = tmp_path / "codes.csv"
+    src.write_text("zip,card,qty,price,note\n00123,4111111111111111,5,2.50,NA\n04567,4000000000000002,12,10,\n",
+                   encoding="utf-8")
+    df = pd.read_excel(convert_sheet(src, out_dir, "xlsx"), dtype=object)
+    assert df["zip"].tolist() == ["00123", "04567"]
+    assert df["card"].tolist() == ["4111111111111111", "4000000000000002"]
+    assert df["qty"].tolist() == [5, 12]
+    assert df["price"].tolist() == [2.5, 10]
+    # pandas would read the text "NA" back as missing, so check the cells themselves.
+    sheet = openpyxl.load_workbook(out_dir / "codes.xlsx").active
+    assert sheet["E2"].value == "NA"  # typed text stays text
+    assert sheet["E3"].value is None  # an empty cell stays empty
+
+
+def test_utf16_csv_from_excel(tmp_path, out_dir):
+    src = tmp_path / "unicode.csv"
+    src.write_bytes("name\tcity\nZoë\tKraków\n".encode("utf-16"))
+    df = pd.read_excel(convert_sheet(src, out_dir, "xlsx"))
+    assert df["city"].iloc[0] == "Kraków"
 
 
 def test_multi_sheet_xlsx_to_csv_is_zip_of_sheets(xlsx_two_sheets, out_dir):

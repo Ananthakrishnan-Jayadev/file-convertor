@@ -5,21 +5,22 @@ Each file type gets the strategy that loses the least:
 - lossless images: optimise / reduce to a 256-colour palette, then downscale
 - PDF: Ghostscript re-render with progressively lower image resolution
 - Office/ODF/EPUB (zip containers): recompress the embedded pictures
+- video: two-pass encode at the bitrate that fits the limit, lowering resolution if needed
+- compressed audio: re-encode at the bitrate that fits (WAV/FLAC are lossless, so they can't)
 - anything else (CSV, TXT, JSON...): can only be shrunk losslessly, so we zip it
 When the target can't be reached we keep the smallest result and say so.
 """
 
 import io
-import subprocess
 import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageSequence
 
 from . import tools
-from .converters import images
+from .converters import images, media
 from .registry import normalize
 
 MIN_QUALITY = 30
@@ -51,16 +52,19 @@ def human(n: int) -> str:
     return f"{n / 1024 / 1024:.1f} MB"
 
 
-def shrink(path: Path, target: int, zip_fallback: bool = True) -> Shrunk:
+def shrink(path: Path, target: int, zip_fallback: bool = True, max_quality: int | None = None) -> Shrunk:
     """Shrink `path` in place (or replace it with a .zip) to at most `target` bytes.
-    For a .zip of results (PDF pages, split parts, sheets) the limit applies to each file inside."""
+    For a .zip of results (PDF pages, split parts, sheets) the limit applies to each file inside.
+    `max_quality` caps the image quality search, so a quality the user picked is never raised."""
     if path.stat().st_size <= target:
         return Shrunk(path, True)
 
     ext = normalize(path.suffix)
     note = ""
-    if ext in images.IMAGE_OUT - {"pdf"}:
-        _keep_if_smaller(path, _shrink_image(path, ext, target))
+    if ext == "gif" and _is_animated(path):
+        _keep_if_smaller(path, _shrink_animated_gif(path, target))
+    elif ext in images.IMAGE_OUT - {"pdf"}:
+        _keep_if_smaller(path, _shrink_image(path, ext, target, max_quality or MAX_QUALITY))
     elif ext == "pdf":
         if tools.ghostscript():
             _keep_if_smaller(path, _shrink_pdf(path, target))
@@ -68,6 +72,13 @@ def shrink(path: Path, target: int, zip_fallback: bool = True) -> Shrunk:
             note = "PDF compression needs Ghostscript, which isn't installed on the server."
     elif ext in CONTAINERS:
         _keep_if_smaller(path, _shrink_container(path, target))
+    elif ext in media.VIDEO | media.AUDIO:
+        if tools.ffmpeg() is None or tools.ffprobe() is None:
+            note = "Audio and video compression needs FFmpeg, which isn't installed on the server."
+        elif ext in media.LOSSLESS_AUDIO:
+            note = f"{ext.upper()} is uncompressed audio. Convert it to MP3, AAC or OPUS to make it smaller."
+        else:
+            note = _shrink_media(path, ext, target)
     elif ext == "zip":
         return _shrink_zip_members(path, target)
     elif zip_fallback:
@@ -90,16 +101,20 @@ def _keep_if_smaller(path: Path, data: bytes | None) -> None:
 # --- images -------------------------------------------------------------------------
 
 
-def _shrink_image(path: Path, ext: str, target: int) -> bytes:
-    im = images.prepare(images.load(path), ext)
+def _shrink_image(path: Path, ext: str, target: int, max_quality: int) -> bytes:
+    im = images.load(path)
+    # The file already reflects the user's metadata choice, so keep whatever it still carries.
+    meta = images.metadata(im, keep_exif=True)
+    im = images.prepare(im, ext)
     best: bytes | None = None
     scale = 1.0
     for _ in range(MAX_RESIZE_STEPS):
+        tools.check_cancelled()
         w, h = round(im.width * scale), round(im.height * scale)
         if min(w, h) < MIN_SIDE:
             break
         candidate = im if scale == 1.0 else im.resize((w, h), Image.Resampling.LANCZOS)
-        data = _encode_under(candidate, ext, target)
+        data = _encode_under(candidate, ext, target, max_quality, meta)
         if best is None or len(data) < len(best):
             best = data
         if len(data) <= target:
@@ -110,28 +125,67 @@ def _shrink_image(path: Path, ext: str, target: int) -> bytes:
     return best if best is not None else path.read_bytes()
 
 
-def _encode_under(im: Image.Image, ext: str, target: int) -> bytes:
+def _encode_under(im: Image.Image, ext: str, target: int, max_quality: int, meta: dict) -> bytes:
     """Best-looking encoding of `im` that fits `target`, or the smallest one we tried."""
     if ext in images.LOSSY:
-        lo, hi, fit = MIN_QUALITY, MAX_QUALITY, None
+        lo, hi, fit = min(MIN_QUALITY, max_quality), max_quality, None
         while lo <= hi:
             q = (lo + hi) // 2
-            data = images.encode(im, ext, q)
+            data = images.encode(im, ext, q, meta)
             if len(data) <= target:
                 fit, lo = data, q + 1
             else:
                 hi = q - 1
-        return fit or images.encode(im, ext, MIN_QUALITY)
+        return fit or images.encode(im, ext, min(MIN_QUALITY, max_quality), meta)
 
-    data = images.encode(im, ext)
+    data = images.encode(im, ext, meta=meta)
     if len(data) <= target or ext not in ("png", "gif", "tiff", "bmp"):
         return data
     # Lossless formats: a 256-colour palette usually halves the size with little visible change.
     # Only PNG and GIF keep transparency through a palette, so the others get RGB only.
     if im.mode == "RGB" or (im.mode == "RGBA" and ext in ("png", "gif")):
         quantized = im.quantize(256, method=Image.Quantize.FASTOCTREE)
-        return min(data, images.encode(quantized, ext), key=len)
+        return min(data, images.encode(quantized, ext, meta=meta), key=len)
     return data
+
+
+def _is_animated(path: Path) -> bool:
+    with Image.open(path) as im:
+        return getattr(im, "n_frames", 1) > 1
+
+
+def _shrink_animated_gif(path: Path, target: int) -> bytes:
+    """Keep the animation: drop frames (merging their display time) and scale every frame down."""
+    with Image.open(path) as im:
+        loop = im.info.get("loop", 0)
+        frames, durations = [], []
+        for frame in ImageSequence.Iterator(im):
+            durations.append(frame.info.get("duration", 100))
+            frames.append(frame.convert("RGBA"))
+
+    best: bytes | None = None
+    scale, step = 1.0, 1
+    for _ in range(MAX_RESIZE_STEPS):
+        tools.check_cancelled()
+        w, h = round(frames[0].width * scale), round(frames[0].height * scale)
+        if min(w, h) < MIN_SIDE:
+            break
+        picked = [f if scale == 1.0 else f.resize((w, h), Image.Resampling.LANCZOS) for f in frames[::step]]
+        shown_for = [sum(durations[i:i + step]) for i in range(0, len(frames), step)]
+        buf = io.BytesIO()
+        picked[0].save(buf, "GIF", save_all=True, append_images=picked[1:], duration=shown_for,
+                       loop=loop, disposal=2, optimize=True)
+        data = buf.getvalue()
+        if best is None or len(data) < len(best):
+            best = data
+        if len(data) <= target:
+            break
+        ratio = target / len(data)
+        # Far over the limit with plenty of frames: halve the frame rate as well as shrinking.
+        if ratio < 0.5 and step < 4 and len(frames) // (step * 2) >= 10:
+            step *= 2
+        scale *= max(0.3, min(0.9, ratio ** 0.5 * 0.95))
+    return best if best is not None else path.read_bytes()
 
 
 # --- PDF ----------------------------------------------------------------------------
@@ -151,8 +205,10 @@ def _shrink_pdf(path: Path, target: int) -> bytes | None:
                 f"-sOutputFile={out}", str(path),
             ]
             try:
-                subprocess.run(cmd, capture_output=True, timeout=300, check=True)
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                code, _ = tools.run(cmd, timeout=300)
+            except TimeoutError:
+                continue
+            if code != 0:
                 continue
             data = out.read_bytes()
             if best is None or len(data) < len(best):
@@ -213,6 +269,72 @@ def _recompress_picture(name: str, data: bytes, quality: int, scale: float) -> b
     return new if len(new) < len(data) else data
 
 
+# --- audio and video ----------------------------------------------------------------
+
+# Leave room for container overhead, which grows with length.
+MEDIA_HEADROOM = 0.93
+MEDIA_ATTEMPTS = 3
+MIN_AUDIO_KBPS = 24
+MIN_VIDEO_KBPS = 40
+# Lower the resolution as the bitrate drops, or the picture turns to blocks: (kbps below, max height).
+VIDEO_HEIGHTS = [(400, 360), (1000, 480), (2500, 720)]
+
+
+def _shrink_media(path: Path, ext: str, target: int) -> str:
+    """Re-encode at a bitrate worked out from the length; retry a little lower if the result
+    still comes out too big. Returns a note for the user (empty when there's nothing to say)."""
+    seconds = media.duration(path)
+    if not seconds:
+        return "Couldn't read how long this file is, so it wasn't compressed."
+    kbps = target * 8 / 1000 / seconds * MEDIA_HEADROOM
+    best: Path | None = None
+    with tempfile.TemporaryDirectory(dir=path.parent, ignore_cleanup_errors=True) as tmp:
+        work = Path(tmp)
+        for attempt in range(MEDIA_ATTEMPTS):
+            out = work / f"try{attempt}.{ext}"
+            if ext in media.VIDEO:
+                if not _encode_video(path, out, ext, kbps, work):
+                    return "This video is too long to fit under that limit at any watchable quality."
+            else:
+                _encode_audio(path, out, ext, max(kbps, MIN_AUDIO_KBPS))
+            if best is None or out.stat().st_size < best.stat().st_size:
+                best = out
+            size = out.stat().st_size
+            if size <= target:
+                break
+            kbps *= target / size * 0.95
+        if best is not None and best.stat().st_size < path.stat().st_size:
+            best.replace(path)
+    return ""
+
+
+def _encode_audio(src: Path, dst: Path, ext: str, kbps: float) -> None:
+    args = ["-i", str(src), "-vn", *media.AUDIO_CODECS[ext], "-b:a", f"{int(kbps)}k"]
+    if kbps < 48:
+        args += ["-ac", "1"]  # at very low bitrates, mono sounds far better than squeezed stereo
+    if kbps < 32 and ext != "opus":
+        args += ["-ar", "22050"]
+    media.ffmpeg([*args, str(dst)])
+
+
+def _encode_video(src: Path, dst: Path, ext: str, kbps: float, work: Path) -> bool:
+    audio_kbps = 64 if kbps > 400 else 32
+    video_kbps = kbps - audio_kbps
+    if video_kbps < MIN_VIDEO_KBPS:
+        return False
+    height = next((h for limit, h in VIDEO_HEIGHTS if video_kbps < limit), None)
+    vcodec, acodec = media.VIDEO_CODECS[ext]
+    scale = f"scale=-2:'min(trunc(ih/2)*2,{height})'" if height else media.EVEN_SIZE
+    common = ["-i", str(src), "-c:v", vcodec, "-b:v", f"{int(video_kbps)}k", "-vf", scale,
+              "-passlogfile", str(work / "pass")]
+    if vcodec == "libx264":
+        common += ["-preset", "medium", "-pix_fmt", "yuv420p"]
+    # Pass 1 only studies the video; pass 2 spends the bitrate where the picture needs it.
+    media.ffmpeg([*common, "-pass", "1", "-an", "-f", "null", "-"], cwd=work)
+    media.ffmpeg([*common, "-pass", "2", "-c:a", acodec, "-b:a", f"{audio_kbps}k", str(dst)], cwd=work)
+    return True
+
+
 # --- zips of several results --------------------------------------------------------
 
 
@@ -224,6 +346,7 @@ def _shrink_zip_members(path: Path, target: int) -> Shrunk:
         with zipfile.ZipFile(path) as src, zipfile.ZipFile(work / "out.zip", "w", zipfile.ZIP_DEFLATED) as dst:
             members = [i for i in src.infolist() if not i.is_dir()]
             for i, info in enumerate(members):
+                tools.check_cancelled()
                 # Extract under a numbered name: never trust paths stored inside a zip.
                 member = work / f"{i}{Path(info.filename).suffix}"
                 member.write_bytes(src.read(info))

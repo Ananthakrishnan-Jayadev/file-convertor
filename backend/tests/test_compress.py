@@ -5,6 +5,7 @@ import pytest
 from PIL import Image
 
 from app.compress import human, shrink
+from app.converters import images
 from app.converters.images import convert_image
 
 from .conftest import needs_gs
@@ -134,3 +135,36 @@ def test_zip_reports_files_still_over_limit(tmp_path):
     assert "1 of 2 files" in result.note
     with zipfile.ZipFile(path) as zf:
         assert zf.namelist() == ["noise.csv", "small.csv"]  # no nested zips
+
+
+def test_quality_cap_is_respected(big_jpg):
+    with Image.open(big_jpg) as im:
+        at_cap = len(images.encode(im.convert("RGB"), "jpg", 40))
+    result = shrink(big_jpg, big_jpg.stat().st_size - 1, max_quality=40)
+    assert result.path.stat().st_size <= at_cap * 1.02
+
+
+def test_colour_profile_survives_shrinking(tmp_path):
+    from PIL import ImageCms
+
+    from .conftest import photo
+
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    src = tmp_path / "wide.jpg"
+    photo().save(src, quality=95, icc_profile=icc)
+    result = shrink(src, src.stat().st_size // 3)
+    with Image.open(result.path) as im:
+        assert im.info.get("icc_profile") == icc
+
+
+def test_animated_gif_stays_animated(tmp_path):
+    from .conftest import photo
+
+    src = tmp_path / "clip.gif"
+    frames = [photo((320, 240)).rotate(i * 12).convert("P") for i in range(30)]
+    frames[0].save(src, save_all=True, append_images=frames[1:], duration=80, loop=0)
+    target = src.stat().st_size // 4
+    result = shrink(src, target)
+    assert result.met and result.path.stat().st_size <= target
+    with Image.open(result.path) as im:
+        assert im.n_frames > 1

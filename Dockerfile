@@ -10,7 +10,7 @@ RUN npm run build
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libreoffice-writer libreoffice-calc libreoffice-impress \
-        ghostscript fonts-dejavu fonts-liberation \
+        ghostscript ffmpeg fonts-dejavu fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY backend/ backend/

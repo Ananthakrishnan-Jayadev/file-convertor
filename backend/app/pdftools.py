@@ -66,15 +66,28 @@ def _add_image_page(doc: pymupdf.Document, src: Path) -> None:
     page.insert_image(page.rect, stream=data)
 
 
-def split(src: Path, out_dir: Path, ranges: list[tuple[int, int]] | None) -> Path:
-    """One PDF per range (or per page when `ranges` is None). Several parts come back as a zip."""
+def _label(start: int, end: int) -> str:
+    return f"page{start}" if start == end else f"pages{start}-{end}"
+
+
+def split(src: Path, out_dir: Path, ranges: list[tuple[int, int]] | None, together: bool = False) -> Path:
+    """One PDF per range (or per page when `ranges` is None). Several parts come back as a zip.
+    With `together`, all the ranges go into a single PDF instead, in the order given."""
+    if together and ranges:
+        with pymupdf.open(src) as doc, pymupdf.open() as out:
+            for start, end in ranges:
+                out.insert_pdf(doc, from_page=start - 1, to_page=end - 1)
+            label = _label(*ranges[0]) if len(ranges) == 1 else "selected"
+            dst = out_dir / f"{src.stem}-{label}.pdf"
+            out.save(str(dst), garbage=3, deflate=True)
+        return dst
+
     parts: list[tuple[str, bytes]] = []
     with pymupdf.open(src) as doc:
         for start, end in ranges or [(p, p) for p in range(1, doc.page_count + 1)]:
             with pymupdf.open() as part:
                 part.insert_pdf(doc, from_page=start - 1, to_page=end - 1)
-                label = f"page{start}" if start == end else f"pages{start}-{end}"
-                parts.append((f"{src.stem}-{label}.pdf", part.tobytes(garbage=3, deflate=True)))
+                parts.append((f"{src.stem}-{_label(start, end)}.pdf", part.tobytes(garbage=3, deflate=True)))
 
     if len(parts) == 1:
         dst = out_dir / parts[0][0]

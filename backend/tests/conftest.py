@@ -16,8 +16,10 @@ from app import tools  # noqa: E402
 
 HAS_SOFFICE = tools.soffice() is not None
 HAS_GS = tools.ghostscript() is not None
+HAS_FFMPEG = tools.ffmpeg() is not None and tools.ffprobe() is not None
 needs_soffice = pytest.mark.skipif(not HAS_SOFFICE, reason="LibreOffice not installed")
 needs_gs = pytest.mark.skipif(not HAS_GS, reason="Ghostscript not installed")
+needs_ffmpeg = pytest.mark.skipif(not HAS_FFMPEG, reason="FFmpeg not installed")
 
 
 def photo(size=(1600, 1200)) -> Image.Image:

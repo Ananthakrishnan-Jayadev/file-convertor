@@ -87,7 +87,7 @@ def test_empty_file(tmp_path):
 
 def test_bad_file_reports_error(tmp_path):
     src = tmp_path / "broken.png"
-    src.write_text("not an image")
+    src.write_bytes(b"\x89PNG\r\n\x1a\n" + b"truncated garbage")  # looks like a PNG, isn't one
     job = wait_for(upload(src, "jpg").json()["id"])
     assert job["status"] == "error" and job["error"]
     assert client.get(f"/api/jobs/{job['id']}/download").status_code == 409
@@ -192,3 +192,77 @@ def test_split_broken_pdf(tmp_path):
     with src.open("rb") as fh:
         res = client.post("/api/pdf/split", files={"file": (src.name, fh)}, data={"ranges": "1"})
     assert res.status_code == 400
+
+
+def test_split_together(tmp_path):
+    src = make_pdf(tmp_path / "report.pdf", 4)
+    with src.open("rb") as fh:
+        res = client.post("/api/pdf/split", files={"file": (src.name, fh)},
+                          data={"ranges": "1, 3-4", "together": "true"})
+    job = wait_for(res.json()["id"])
+    assert job["output_name"] == "report-selected.pdf"
+    dl = client.get(f"/api/jobs/{job['id']}/download")
+    with pymupdf.open(stream=dl.content, filetype="pdf") as doc:
+        assert doc.page_count == 3
+
+
+def test_contents_that_contradict_the_extension_are_rejected(tmp_path, big_jpg):
+    fake = tmp_path / "report.pdf"
+    fake.write_bytes(big_jpg.read_bytes())
+    res = upload(fake, "docx")
+    assert res.status_code == 415
+    assert "looks like an image" in res.json()["detail"]
+
+
+def test_text_named_as_image_is_rejected(tmp_path):
+    src = tmp_path / "photo.png"
+    src.write_text("not an image")
+    assert upload(src, "jpg").status_code == 415
+
+
+def test_jpeg_named_png_is_still_converted(tmp_path, big_jpg):
+    misnamed = tmp_path / "actually-jpeg.png"
+    misnamed.write_bytes(big_jpg.read_bytes())
+    job = wait_for(upload(misnamed, "webp").json()["id"])
+    assert job["status"] == "done", job
+
+
+def test_image_options_are_applied(big_jpg):
+    with big_jpg.open("rb") as fh:
+        res = client.post("/api/jobs", files={"file": (big_jpg.name, fh)},
+                          data={"target_format": "png", "scale": "25", "rotate": "90"})
+    job = wait_for(res.json()["id"])
+    dl = client.get(f"/api/jobs/{job['id']}/download")
+    assert Image.open(io.BytesIO(dl.content)).size == (300, 400)
+
+
+def test_image_options_on_same_format_re_encode(big_jpg):
+    with big_jpg.open("rb") as fh:
+        res = client.post("/api/jobs", files={"file": (big_jpg.name, fh)},
+                          data={"target_format": "jpg", "width": "160"})
+    job = wait_for(res.json()["id"])
+    dl = client.get(f"/api/jobs/{job['id']}/download")
+    assert Image.open(io.BytesIO(dl.content)).width == 160
+
+
+@pytest.mark.parametrize("field, value", [("scale", "0"), ("scale", "150"), ("quality", "101"),
+                                          ("rotate", "45"), ("width", "0")])
+def test_invalid_image_options(png_alpha, field, value):
+    with png_alpha.open("rb") as fh:
+        res = client.post("/api/jobs", files={"file": (png_alpha.name, fh)},
+                          data={"target_format": "jpg", field: value})
+    assert res.status_code == 400
+
+
+def test_image_options_rejected_for_non_images(csv_file):
+    with csv_file.open("rb") as fh:
+        res = client.post("/api/jobs", files={"file": (csv_file.name, fh)},
+                          data={"target_format": "xlsx", "rotate": "90"})
+    assert res.status_code == 400
+    assert "only apply to images" in res.json()["detail"]
+
+
+def test_delete_finished_job(csv_file):
+    job = wait_for(upload(csv_file, "json").json()["id"])
+    assert client.delete(f"/api/jobs/{job['id']}").json()["status"] == "deleted"
+    assert client.get(f"/api/jobs/{job['id']}").status_code == 404
